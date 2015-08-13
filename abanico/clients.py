@@ -76,7 +76,7 @@ class RoutingPool(object):
                             'arguments are provided.')
 
         router = self.cluster.get_router()
-        host_id = router.route(command_name, command_args)
+        host_id = router.get_host(command_name, command_args)
         if host_id is None:
             raise RuntimeError('Unable to determine host for command')
 

@@ -58,29 +58,17 @@ class BaseRouter(object):
             'The command "%r" operates on multiple keys which is '
             'something that is not supported.' % command)
 
-    def get_dbs(self, command, args):
-        """Returns a list of db keys to route the given call to.
-
-        >>> redis = Cluster(router=BaseRouter)
-        >>> router = redis.router
-        >>> router.get_dbs('incr', args=('key name', 1))
-        [0, 1, 2]
-
-        :param command: Name of command being called on the connection.
-        :param args: List of arguments being passed to ``command``.
-        """
+    def get_host(self, command, args):
+        """Returns the host this command should be executed against."""
         if not self._ready:
             if not self.setup_router(args=args):
                 raise UnableToSetupRouter()
             self._ready = True
 
         args = self.pre_routing(command=command, args=args)
-
-        if not args:
-            return self.cluster.hosts.keys()
-
         host_id = self.route(command=command, args=args)
-        return self.post_routing(command=command, host_id=host_id, args=args)
+        return self.post_routing(command=command, args=args,
+                                 host_id=host_id)
 
     def setup_router(self, args):
         """Perform any initialization for the router Returns False if
