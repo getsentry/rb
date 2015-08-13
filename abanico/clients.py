@@ -21,12 +21,21 @@ def get_current_routing_client():
 
 class EventualResult(object):
 
-    def __init__(self, connection, pool, read_response):
+    def __init__(self, client, connection, pool, args, kwargs):
+        self._client = weakref(client)
         self.connection = connection
         self.pool = pool
-        self.read_response = read_response
+        self.args = args
+        self.kwargs = kwargs
         self.value = None
         self.result_ready = False
+
+    @property
+    def client(self):
+        client = self._client()
+        if client is not None:
+            return client
+        raise RuntimeError('Client went away')
 
     def fileno(self):
         if self.connection is None or \
@@ -40,13 +49,16 @@ class EventualResult(object):
         self.connection.disconnect()
         self.pool.release(self.connection)
         self.connection = None
+        self.client.notify_request_done(self)
 
     def wait_for_result(self):
         if not self.result_ready:
             try:
-                self.value = self.read_response()
+                self.value = self.client.parse_response(self.connection,
+                                                        *self.args,
+                                                        **self.kwargs)
             finally:
-                self.result_ready = True
+                self.client.notify_request_done(self)
                 self.pool.release(self.connection)
         return self.value
 
@@ -58,14 +70,7 @@ class RoutingPool(object):
     """
 
     def __init__(self, cluster):
-        self._cluster = weakref(cluster)
-
-    @property
-    def cluster(self):
-        rv = self._cluster()
-        if rv is None:
-            raise RuntimeError('Cluster went away')
-        return rv
+        self.cluster = cluster
 
     def get_connection(self, command_name, shard_hint=None,
                        command_args=None):
@@ -137,27 +142,26 @@ class RoutingClient(StrictRedis):
                                                 command_name, **options)
 
     def eventual_parse_response(self, pool, connection, *args, **kwargs):
-        def read_response():
-            try:
-                return self.parse_response(connection, *args, **kwargs)
-            finally:
-                with self._routing_lock:
-                    try:
-                        self.current_requests.remove(er)
-                    except ValueError:
-                        pass
-        er = EventualResult(connection, pool, read_response)
+        er = EventualResult(self, connection, pool, args, kwargs)
         with self._routing_lock:
+            # We need to make sure that we don't run too many tasks
+            # concurrently.  Here we just start blocking if we hit the
+            # max concurrency until some tasks free up.
             if self.max_concurrency is not None:
                 while len(self.current_requests) >= self.max_concurrency:
-                    self.wait_for_outstanding_response()
+                    for other_er in select.select(self.current_requests[:],
+                                                  [], [], 1.0)[0]:
+                        other_er.wait_for_result()
+
             self.current_requests.append(er)
         return er
 
-    def wait_for_outstanding_response(self, timeout=1.0):
-        """Waits for at least one outstanding response in the given timeout."""
-        for er in select.select(self.current_requests[:], [], [], timeout)[0]:
-            er.wait_for_result()
+    def notify_request_done(self, er):
+        with self._routing_lock:
+            try:
+                self.current_requests.remove(er)
+            except ValueError:
+                pass
 
     def wait_for_outstanding_responses(self, timeout=None):
         """Waits for all outstanding responses to come back or the
@@ -173,3 +177,8 @@ class RoutingClient(StrictRedis):
                 remaining -= (time.time() - now)
             for er in rv[0]:
                 er.wait_for_result()
+
+    def cancel_outstanding_responses(self):
+        """Cancels all outstanding responses."""
+        for er in self.current_requests:
+            er.cancel()

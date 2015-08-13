@@ -22,6 +22,9 @@ class BaseRouter(object):
 
     def __init__(self, cluster=None):
         self._ready = False
+        # this is a weakref because the router is cached on the cluster
+        # and otherwise we end up in circular reference land and we are
+        # having problems being garbage collected.
         self._cluster = weakref(cluster)
 
     @property

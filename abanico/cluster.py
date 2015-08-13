@@ -3,7 +3,6 @@ import time
 from redis.connection import ConnectionPool, UnixDomainSocketConnection
 
 from threading import Lock
-from contextlib import contextmanager
 
 from abanico.router import PartitionRouter
 from abanico.clients import RoutingClient
@@ -50,6 +49,27 @@ def _iter_hosts(iterable):
         else:
             cfg = item
         yield cfg
+
+
+class MapManager(object):
+
+    def __init__(self, client, timeout):
+        self.client = client
+        self.timeout = timeout
+        self.entered = None
+
+    def __enter__(self):
+        self.entered = time.time()
+        return self.client
+
+    def __exit__(self, exc_type, exc_value, tb):
+        if exc_type is not None:
+            self.client.cancel_outstanding_requests()
+        else:
+            timeout = self.timeout
+            if timeout is not None:
+                timeout = max(1, timeout - (time.time() - self.started))
+            self.client.wait_for_outstanding_responses(timeout=timeout)
 
 
 class Cluster(object):
@@ -157,16 +177,8 @@ class Cluster(object):
         """
         return RoutingClient(self, max_concurrency=max_concurrency)
 
-    @contextmanager
     def map(self, timeout=None):
         """Shortcut context manager for getting a routing client and joining
         for the result.
         """
-        now = time.time()
-        client = self.get_routing_client()
-        try:
-            yield client
-        finally:
-            if timeout is not None:
-                timeout = max(1, timeout - (time.time() - now))
-            client.wait_for_outstanding_responses(timeout=timeout)
+        return MapManager(self.get_routing_client(), timeout)
