@@ -103,14 +103,9 @@ class BaseRouter(object):
 
 
 class ConsistentHashingRouter(BaseRouter):
-    """Router that returns host number based on a consistent hashing
+    """Router that returns the host_id based on a consistent hashing
     algorithm.  The consistent hashing algorithm only works if a key
     argument is provided.
-
-    If a key is not provided, then all hosts are returned.
-
-    The first argument is assumed to be the ``key`` for routing. Keyword
-    arguments are not supported.
     """
 
     # XXX: this code really needs some sanity checking.  It already seemed
