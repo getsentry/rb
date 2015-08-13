@@ -37,19 +37,11 @@ class BaseRouter(object):
     def get_key(self, command, args):
         """Returns the key a command operates on."""
         key_positions = COMMANDS.get(command.upper(), Ellipsis)
-        arg_shift = 0
-        if key_positions is Ellipsis \
-           and args and isinstance(args[0], basestring):
-            key_positions = COMMANDS.get('%s %s' % (
-                command.upper(),
-                args[0].upper(),
-            ), Ellipsis)
-            arg_shift = 1
 
         if key_positions is Ellipsis:
             raise UnroutableCommand('The command "%r" is unknown to the '
                                     'router and cannot be handled as a '
-                                    'result.')
+                                    'result.' % command)
         elif key_positions is not None:
             # There is no key in the command
             if not key_positions:
@@ -58,7 +50,7 @@ class BaseRouter(object):
             # A single key was sent
             elif len(key_positions) == 1:
                 try:
-                    return args[key_positions[0] + arg_shift]
+                    return args[key_positions[0]]
                 except LookupError:
                     return None
 

@@ -12,7 +12,7 @@ def test_router_key_routing():
     router = cluster.get_router()
     assert router.get_key('INCR', ['foo']) == 'foo'
     assert router.get_key('GET', ['bar']) == 'bar'
-    assert router.get_key('CLIENT', ['LIST']) is None
+    assert router.get_key('CLIENT LIST', []) is None
 
     with pytest.raises(UnroutableCommand):
         router.get_key('MGET', ['foo', 'bar', 'baz'])
