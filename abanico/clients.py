@@ -21,12 +21,10 @@ def get_current_routing_client():
 
 class EventualResult(object):
 
-    def __init__(self, client, connection, pool, args, kwargs):
+    def __init__(self, client, connection, command_name):
         self._client = weakref(client)
         self.connection = connection
-        self.pool = pool
-        self.args = args
-        self.kwargs = kwargs
+        self.command_name = command_name
         self.value = None
         self.result_ready = False
 
@@ -47,7 +45,7 @@ class EventualResult(object):
         if self.result_ready or self.connection is None:
             return
         self.connection.disconnect()
-        self.pool.release(self.connection)
+        self.client.connection_pool.release(self.connection)
         self.connection = None
         self.client.notify_request_done(self)
 
@@ -55,11 +53,10 @@ class EventualResult(object):
         if not self.result_ready:
             try:
                 self.value = self.client.parse_response(self.connection,
-                                                        *self.args,
-                                                        **self.kwargs)
+                                                        self.command_name)
             finally:
                 self.client.notify_request_done(self)
-                self.pool.release(self.connection)
+                self.client.connection_pool.release(self.connection)
         return self.value
 
 
@@ -109,10 +106,20 @@ class RoutingPool(object):
         pass
 
 
-class RoutingClient(StrictRedis):
+class BaseClient(StrictRedis):
+    pass
 
-    def __init__(self, cluster, max_concurrency=None):
-        StrictRedis.__init__(self, connection_pool=RoutingPool(cluster))
+
+class RoutingClient(BaseClient):
+    """The routing client uses the cluster's router to target an individual
+    node automatically based on the key of the redis command executed.
+    """
+
+    def __init__(self, cluster, max_concurrency=None,
+                 connection_pool=None):
+        if connection_pool is None:
+            connection_pool = RoutingPool(cluster)
+        BaseClient.__init__(self, connection_pool=connection_pool)
         self.max_concurrency = max_concurrency
         self.current_requests = []
         self._routing_lock = RLock()
@@ -123,26 +130,20 @@ class RoutingClient(StrictRedis):
     def pipeline(self, transaction=True, shard_hint=None):
         raise NotImplementedError('Pipelines are unsupported.')
 
-    def execute_command(self, *args, **options):
-        # TODO: if current_requests > max_concurrency consider trying
-        # to clear outstanding requests and block.
-        pool = self.connection_pool
+    def execute_command(self, *args):
         command_name = args[0]
-        connection = pool.get_connection(command_name,
-                                         command_args=args[1:],
-                                         **options)
+        connection = self.connection_pool.get_connection(
+            command_name, command_args=args[1:])
         try:
             connection.send_command(*args)
-            return self.eventual_parse_response(pool, connection,
-                                                command_name, **options)
+            return self.eventual_parse_response(connection, command_name)
         except ConnectionError:
             connection.disconnect()
             connection.send_command(*args)
-            return self.eventual_parse_response(pool, connection,
-                                                command_name, **options)
+            return self.eventual_parse_response(connection, command_name)
 
-    def eventual_parse_response(self, pool, connection, *args, **kwargs):
-        er = EventualResult(self, connection, pool, args, kwargs)
+    def eventual_parse_response(self, connection, command_name):
+        er = EventualResult(self, connection, command_name)
         with self._routing_lock:
             # We need to make sure that we don't run too many tasks
             # concurrently.  Here we just start blocking if we hit the
@@ -182,3 +183,15 @@ class RoutingClient(StrictRedis):
         """Cancels all outstanding requests."""
         for er in self.current_requests:
             er.cancel()
+
+
+class LocalClient(BaseClient):
+    """The local client is just a convenient method to target one specific
+    host.
+    """
+
+    def __init__(self, cluster, connection_pool=None, **kwargs):
+        if connection_pool is None:
+            raise TypeError('The local client needs a connection pool')
+        BaseClient.__init__(self, cluster, connection_pool=connection_pool,
+                            **kwargs)

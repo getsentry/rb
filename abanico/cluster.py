@@ -5,7 +5,7 @@ from redis.connection import ConnectionPool, UnixDomainSocketConnection
 from threading import Lock
 
 from abanico.router import PartitionRouter
-from abanico.clients import RoutingClient
+from abanico.clients import RoutingClient, LocalClient
 
 
 class HostInfo(object):
@@ -168,6 +168,14 @@ class Cluster(object):
                 rv = self.pool_cls(**opts)
                 self._pools[host_id] = rv
             return rv
+
+    def get_local_client(self, host_id):
+        """Returns a localized client for a specific host ID.  This client
+        works like a regular Python redis client and returns results
+        immediately.
+        """
+        return LocalClient(
+            self, connection_pool=self.get_pool_for_host(host_id))
 
     def get_routing_client(self, max_concurrency=64):
         """Returns a routing client.  This client can operate
