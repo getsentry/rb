@@ -178,7 +178,7 @@ class RoutingClient(StrictRedis):
             for er in rv[0]:
                 er.wait_for_result()
 
-    def cancel_outstanding_responses(self):
-        """Cancels all outstanding responses."""
+    def cancel_outstanding_requests(self):
+        """Cancels all outstanding requests."""
         for er in self.current_requests:
             er.cancel()
