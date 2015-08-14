@@ -64,12 +64,12 @@ class MapManager(object):
 
     def __exit__(self, exc_type, exc_value, tb):
         if exc_type is not None:
-            self.client.cancel_outstanding_requests()
+            self.client.cancel()
         else:
             timeout = self.timeout
             if timeout is not None:
                 timeout = max(1, timeout - (time.time() - self.started))
-            self.client.wait_for_outstanding_responses(timeout=timeout)
+            self.client.join(timeout=timeout)
 
 
 class Cluster(object):
@@ -182,6 +182,8 @@ class Cluster(object):
         automatically across the routing targets but instead of returning
         results directly it will return result objects that you need to
         await.
+
+        This client must not be shared across threads!
         """
         return RoutingClient(self, max_concurrency=max_concurrency)
 

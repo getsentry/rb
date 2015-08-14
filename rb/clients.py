@@ -2,62 +2,122 @@ import time
 import select
 
 from weakref import ref as weakref
-from threading import local, RLock
 
 from redis import StrictRedis
 
-from redis.exceptions import ConnectionError
-
-
-_local = local()
-
-
-def get_current_routing_client():
-    try:
-        return _local.routing_stack[-1]
-    except (AttributeError, IndexError):
-        return None
-
 
 class EventualResult(object):
+    """Helper that holds data for an eventually available result value."""
 
-    def __init__(self, client, connection, command_name):
-        self._client = weakref(client)
-        self.connection = connection
-        self.command_name = command_name
+    def __init__(self, command_buffer):
+        self.command_buffer = command_buffer
         self.value = None
         self.result_ready = False
 
-    @property
-    def client(self):
-        client = self._client()
-        if client is not None:
-            return client
-        raise RuntimeError('Client went away')
-
-    def fileno(self):
-        if self.connection is None or \
-           self.connection._sock is None:
-            raise ValueError('I/O operation on closed file')
-        return self.connection._sock.fileno()
-
-    def cancel(self):
-        if self.result_ready or self.connection is None:
+    def resolve(self, value):
+        if self.result_ready:
             return
-        self.connection.disconnect()
-        self.client.connection_pool.release(self.connection)
-        self.connection = None
-        self.client.notify_request_done(self)
+        self.value = value
+        self.result_ready = True
 
     def wait_for_result(self):
         if not self.result_ready:
-            try:
-                self.value = self.client.parse_response(self.connection,
-                                                        self.command_name)
-            finally:
-                self.client.notify_request_done(self)
-                self.client.connection_pool.release(self.connection)
+            self.command_buffer.wait_for_specific_result(self)
         return self.value
+
+    def __repr__(self):
+        return '<%s %s>' % (
+            self.__class__.__name__,
+            self.result_ready and repr(self.value) or '(pending)',
+        )
+
+
+class CommandBuffer(object):
+    """The command buffer is an internal construct """
+
+    def __init__(self, client, host_id, connection):
+        # XXX: weakref this
+        self.client = client
+        self.host_id = host_id
+        self.connection = connection
+        self.commands = []
+        self.last_command_sent = 0
+        self.last_command_received = 0
+
+        # Ensure we're connected.  Without this, we won't have a socket
+        # we can select over.
+        connection.connect()
+
+    @property
+    def closed(self):
+        """Indicates if the command buffer is closed."""
+        return self.connection is None or self.connection._sock is None
+
+    def __assert_open(self):
+        if self.closed:
+            raise ValueError('I/O operation on closed file')
+
+    def fileno(self):
+        """Returns the file number of the underlying connection's socket
+        to be able to select over it.
+        """
+        self.__assert_open()
+        return self.connection._sock.fileno()
+
+    def close(self):
+        """Invalidates the command buffer for future usage."""
+        self.client._release_command_buffer(self)
+
+    def enqueue_command(self, command_name, args):
+        """Enqueue a new command into this pipeline."""
+        self.__assert_open()
+        er = EventualResult(self)
+        self.commands.append((command_name, args, er))
+        return er
+
+    def send_pending_requests(self):
+        """Sends all pending requests into the connection."""
+        self.__assert_open()
+        unsent_commands = self.commands[self.last_command_sent:]
+        if not unsent_commands:
+            return
+
+        all_cmds = self.connection.pack_commands(
+            [(x[0],) + tuple(x[1]) for x in unsent_commands])
+        self.connection.send_packed_command(all_cmds)
+        self.last_command_sent += len(unsent_commands)
+
+    def wait_for_responses(self):
+        """Waits for all responses to come back and resolves the
+        eventual results.
+        """
+        self.__assert_open()
+        pending = self.last_command_sent - self.last_command_received
+        if pending <= 0:
+            return
+
+        for idx in xrange(pending):
+            real_idx = self.last_command_received + idx
+            command_name, _, er = self.commands[real_idx]
+            value = self.client.parse_response(
+                self.connection, command_name)
+            er.resolve(value)
+        self.last_command_received += idx
+
+    def wait_for_specific_result(self, er):
+        """Waits for an eventual result."""
+        self.__assert_open()
+        for idx, (command_name, args, other_er) in enumerate(self.commands):
+            if other_er is er:
+                break
+        else:
+            raise LookupError('This result is not guarded by this command '
+                              'buffer.')
+
+        if idx < self.last_command_sent:
+            self.send_pending_requests()
+        if idx < self.last_command_received:
+            self.wait_for_outstanding_responses()
 
 
 class RoutingPool(object):
@@ -69,20 +129,14 @@ class RoutingPool(object):
     def __init__(self, cluster):
         self.cluster = cluster
 
-    def get_connection(self, command_name, shard_hint=None,
-                       command_args=None):
-        if command_args is None:
-            raise TypeError('The routing pool requires that the command '
-                            'arguments are provided.')
-
-        router = self.cluster.get_router()
-        host_id = router.get_host(command_name, command_args)
+    def get_connection(self, command_name, shard_hint=None):
+        host_id = shard_hint
         if host_id is None:
-            raise RuntimeError('Unable to determine host for command')
+            raise RuntimeError('The routing pool requires the host id '
+                               'as shard hint')
 
         real_pool = self.cluster.get_pool_for_host(host_id)
-
-        con = real_pool.get_connection(command_name, shard_hint)
+        con = real_pool.get_connection(command_name)
         con.__creating_pool = weakref(real_pool)
         return con
 
@@ -121,8 +175,9 @@ class RoutingClient(BaseClient):
             connection_pool = RoutingPool(cluster)
         BaseClient.__init__(self, connection_pool=connection_pool)
         self.max_concurrency = max_concurrency
-        self.current_requests = []
-        self._routing_lock = RLock()
+        self.active_command_buffers = {}
+
+    # Standard redis methods
 
     def pubsub(self, **kwargs):
         raise NotImplementedError('Pubsub is unsupported.')
@@ -131,58 +186,87 @@ class RoutingClient(BaseClient):
         raise NotImplementedError('Pipelines are unsupported.')
 
     def execute_command(self, *args):
-        command_name = args[0]
+        """Unlike a regular client our execute goes through the internal
+        command buffers which just return eventual results.
+        """
+        buf = self._get_command_buffer(args[0], args[1:])
+        return buf.enqueue_command(args[0], args[1:])
+
+    # Custom Internal API
+
+    def _get_command_buffer(self, command_name, command_args):
+        """Returns the command buffer for the given command and arguments."""
+        router = self.connection_pool.cluster.get_router()
+        host_id = router.get_host(command_name, command_args)
+        if host_id is None:
+            raise RuntimeError('Unable to determine host for command')
+
+        buf = self.active_command_buffers.get(host_id)
+        if buf is not None:
+            return buf
+
+        while len(self.active_command_buffers) >= self.max_concurrency:
+            self._try_to_clear_outstanding_requests()
+
         connection = self.connection_pool.get_connection(
-            command_name, command_args=args[1:])
-        try:
-            connection.send_command(*args)
-            return self.eventual_parse_response(connection, command_name)
-        except ConnectionError:
-            connection.disconnect()
-            connection.send_command(*args)
-            return self.eventual_parse_response(connection, command_name)
+            command_name, shard_hint=host_id)
+        buf = CommandBuffer(self, host_id, connection)
+        self.active_command_buffers[host_id] = buf
+        return buf
 
-    def eventual_parse_response(self, connection, command_name):
-        er = EventualResult(self, connection, command_name)
-        with self._routing_lock:
-            # We need to make sure that we don't run too many tasks
-            # concurrently.  Here we just start blocking if we hit the
-            # max concurrency until some tasks free up.
-            if self.max_concurrency is not None:
-                while len(self.current_requests) >= self.max_concurrency:
-                    for other_er in select.select(self.current_requests[:],
-                                                  [], [], 1.0)[0]:
-                        other_er.wait_for_result()
+    def _release_command_buffer(self, command_buffer):
+        """This is called by the command buffer when it closes."""
+        if command_buffer.closed:
+            return
 
-            self.current_requests.append(er)
-        return er
+        self.active_command_buffers.pop(command_buffer.host_id, None)
+        self.connection_pool.release(command_buffer.connection)
+        command_buffer.connection = None
 
-    def notify_request_done(self, er):
-        with self._routing_lock:
-            try:
-                self.current_requests.remove(er)
-            except ValueError:
-                pass
+    def _get_readable_command_buffers(self, timeout=None):
+        """Return a list of all command buffers that are readable."""
+        buffers = self.active_command_buffers.values()
+        return select.select(buffers, [], [], timeout)[0]
 
-    def wait_for_outstanding_responses(self, timeout=None):
-        """Waits for all outstanding responses to come back or the
-        timeout to be hit.
+    def _try_to_clear_outstanding_requests(self, timeout=1.0):
+        """Tries to clear some outstanding requests in the given timeout
+        to reduce the concurrency pressure.
+        """
+        if not self.active_command_buffers:
+            return
+
+        for command_buffer in self.active_command_buffers.values():
+            command_buffer.send_pending_requests()
+
+        for command_buffer in self._get_readable_command_buffers(timeout):
+            command_buffer.wait_for_responses()
+            command_buffer.close()
+
+    # Custom Public API
+
+    def join(self, timeout=None):
+        """Waits for all outstanding responses to come back or the timeout
+        to be hit.
         """
         remaining = timeout
 
-        while self.current_requests and (remaining is None or
-                                         remaining > 0):
+        for command_buffer in self.active_command_buffers.values():
+            command_buffer.send_pending_requests()
+
+        while self.active_command_buffers and (remaining is None or
+                                               remaining > 0):
             now = time.time()
-            rv = select.select(self.current_requests[:], [], [], remaining)
+            rv = self._get_readable_command_buffers(remaining)
             if remaining is not None:
                 remaining -= (time.time() - now)
-            for er in rv[0]:
-                er.wait_for_result()
+            for command_buffer in rv:
+                command_buffer.wait_for_responses()
+                command_buffer.close()
 
-    def cancel_outstanding_requests(self):
+    def cancel(self):
         """Cancels all outstanding requests."""
-        for er in self.current_requests:
-            er.cancel()
+        for er in self.active_command_buffers.values():
+            er.close()
 
 
 class LocalClient(BaseClient):

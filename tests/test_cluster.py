@@ -42,15 +42,15 @@ def test_router_access():
 
 
 def test_basic_cluster():
-    iterations = 1000
+    iterations = 10000
 
-    with make_test_cluster() as cluster:
+    with make_test_cluster(servers=8, databases_each=32) as cluster:
         with cluster.map() as client:
             for x in xrange(iterations):
-                client.set('demo-key-%d' % x, x)
+                client.set('key-%06d' % x, x)
         responses = []
         with cluster.map() as client:
             for x in xrange(iterations):
-                responses.append(client.get('demo-key-%d' % x))
+                responses.append(client.get('key-%06d' % x))
         ref_sum = sum(int(x.value) for x in responses)
         assert ref_sum == sum(xrange(iterations))
