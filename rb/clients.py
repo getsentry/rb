@@ -199,7 +199,7 @@ class MappingClient(RoutingBaseClient):
     def _get_command_buffer(self, command_name, command_args):
         """Returns the command buffer for the given command and arguments."""
         router = self.connection_pool.cluster.get_router()
-        host_id = router.get_host(command_name, command_args)
+        host_id = router.get_host_for_command(command_name, command_args)
         buf = self.active_command_buffers.get(host_id)
         if buf is not None:
             return buf
@@ -284,7 +284,7 @@ class RoutingClient(RoutingBaseClient):
         command_name = args[0]
         command_args = args[1:]
         router = self.connection_pool.cluster.get_router()
-        host_id = router.get_host(command_name, command_args)
+        host_id = router.get_host_for_command(command_name, command_args)
         connection = pool.get_connection(command_name, shard_hint=host_id)
         try:
             connection.send_command(*args)

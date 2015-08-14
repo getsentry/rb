@@ -158,11 +158,7 @@ class Cluster(object):
         """Similar to :meth:`get_local_client_for_key` but returns the
         client based on what the router says the key destination is.
         """
-        # XXX: the router interface is stupid.  It should route just by
-        # the key but the primary input method is the redis command :-/
-        router = self.get_router()
-        host_id = router.get_host('GET', [key])
-        return self.get_local_client(host_id)
+        return self.get_local_client(self.get_router().route(key))
 
     def get_routing_client(self):
         """Returns a routing client.  This client is able to automatically

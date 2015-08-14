@@ -1,15 +1,8 @@
-import time
-
 from weakref import ref as weakref
 from binascii import crc32
-from threading import Lock
 
 from rb.ketama import Ketama
 from rb._rediscommands import COMMANDS
-
-
-class UnableToSetupRouter(Exception):
-    pass
 
 
 class UnroutableCommand(Exception):
@@ -17,8 +10,6 @@ class UnroutableCommand(Exception):
 
 
 class BaseRouter(object):
-
-    retryable = False
 
     def __init__(self, cluster=None):
         # this is a weakref because the router is cached on the cluster
@@ -57,25 +48,14 @@ class BaseRouter(object):
             'The command "%r" operates on multiple keys which is '
             'something that is not supported.' % command)
 
-    def get_host(self, command, args):
+    def get_host_for_command(self, command, args):
         """Returns the host this command should be executed against."""
-        args = self.pre_routing(command=command, args=args)
-        host_id = self.route(command=command, args=args)
-        return self.post_routing(command=command, args=args,
-                                 host_id=host_id)
+        key = self.get_key(command, args)
+        return self.route(key)
 
-    def pre_routing(self, command, args):
-        """Perform any prerouting with this method and return the args.
-        """
-        return args
-
-    def route(self, command, args):
+    def route(self, key):
         """Perform routing and return host_id of the target."""
         raise NotImplementedError()
-
-    def post_routing(self, command, host_id, args):
-        """Perform any postrouting actions and return host_id."""
-        return host_id
 
 
 class ConsistentHashingRouter(BaseRouter):
@@ -84,57 +64,16 @@ class ConsistentHashingRouter(BaseRouter):
     argument is provided.
     """
 
-    # XXX: this code really needs some sanity checking.  It already seemed
-    # questionable in nydus
-
-    # If this router can be retried on if a particular db index it gave out did
-    # not work
-    retryable = True
-
-    # Number of seconds a host must be marked down before it is elligable to be
-    # put back in the pool and retried.
-    retry_timeout = 30
-
     def __init__(self, cluster):
         BaseRouter.__init__(self, cluster)
-        self._host_id_id_map = {}
-        self._down_connections = {}
         self._host_id_id_map = dict(self.cluster.hosts.items())
-        self._hash_lock = Lock()
         self._hash = Ketama(self._host_id_id_map.values())
 
-    def check_down_connections(self):
-        now = time.time()
-        for host_id, marked_down_at in self._down_connections.items():
-            if marked_down_at + self.retry_timeout <= now:
-                self.mark_connection_up(host_id)
-
-    def mark_connection_down(self, host_id):
-        self._down_connections[host_id] = time.time()
-        with self._hash_lock:
-            self._hash.remove_node(self._host_id_id_map[host_id])
-
-    def mark_connection_up(self, host_id):
-        self._down_connections.pop(host_id, None)
-        with self._hash_lock:
-            self._hash.add_node(self._host_id_id_map[host_id])
-
-    def pre_routing(self, command, args):
-        self.check_down_connections()
-        return BaseRouter.pre_routing(self, command, args)
-
-    def route(self, command, args):
-        key = self.get_key(command, args)
-        if key is None:
-            raise UnroutableCommand('Without a key no destination can be '
-                                    'determined.')
-        with self._hash_lock:
-            return self._hash.get_node(key)
-
-    def post_routing(self, command, host_id, args):
-        if host_id is not None and host_id in self._down_connections:
-            self.mark_connection_up(host_id)
-        return host_id
+    def route(self, key):
+        rv = self._hash.get_node(key)
+        if rv is None:
+            raise UnroutableCommand('Did not find a suitable host for the key.')
+        return rv
 
 
 class PartitionRouter(BaseRouter):
@@ -142,11 +81,7 @@ class PartitionRouter(BaseRouter):
     single nodes based on a simple crc32 % node_count setup.
     """
 
-    def route(self, command, args):
-        key = self.get_key(command, args)
-        if key is None:
-            raise UnroutableCommand('Without a key no destination can be '
-                                    'determined.')
+    def route(self, key):
         if isinstance(key, unicode):
             k = key.encode('utf-8')
         else:

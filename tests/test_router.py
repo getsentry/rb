@@ -29,6 +29,10 @@ def test_router_basics():
     })
 
     router = cluster.get_router()
-    assert router.route('INCR', ['foo']) == 1
-    assert router.route('INCR', ['bar']) == 2
-    assert router.route('INCR', ['baz']) == 0
+    assert router.get_host_for_command('INCR', ['foo']) == 1
+    assert router.get_host_for_command('INCR', ['bar']) == 2
+    assert router.get_host_for_command('INCR', ['baz']) == 0
+
+    assert router.route('foo') == 1
+    assert router.route('bar') == 2
+    assert router.route('baz') == 0
