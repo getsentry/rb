@@ -4,6 +4,7 @@ import select
 from weakref import ref as weakref
 
 from redis import StrictRedis
+from redis.exceptions import ConnectionError, TimeoutError
 
 
 class EventualResult(object):
@@ -164,31 +165,32 @@ class BaseClient(StrictRedis):
     pass
 
 
-class RoutingClient(BaseClient):
-    """The routing client uses the cluster's router to target an individual
-    node automatically based on the key of the redis command executed.
-    """
-
-    def __init__(self, cluster, max_concurrency=None,
-                 connection_pool=None):
-        if connection_pool is None:
-            connection_pool = RoutingPool(cluster)
-        BaseClient.__init__(self, connection_pool=connection_pool)
-        self.max_concurrency = max_concurrency
-        self.active_command_buffers = {}
-
-    # Standard redis methods
+class RoutingBaseClient(BaseClient):
 
     def pubsub(self, **kwargs):
         raise NotImplementedError('Pubsub is unsupported.')
 
     def pipeline(self, transaction=True, shard_hint=None):
-        raise NotImplementedError('Pipelines are unsupported.')
+        raise NotImplementedError('Manual pipelines are unsupported. rb '
+                                  'automatically pipelines commands.')
+
+    def lock(self, *args, **kwargs):
+        raise NotImplementedError('Locking is not supported.')
+
+
+class MappingClient(RoutingBaseClient):
+    """The routing client uses the cluster's router to target an individual
+    node automatically based on the key of the redis command executed.
+    """
+
+    def __init__(self, connection_pool, max_concurrency=None):
+        RoutingBaseClient.__init__(self, connection_pool=connection_pool)
+        self.max_concurrency = max_concurrency
+        self.active_command_buffers = {}
+
+    # Standard redis methods
 
     def execute_command(self, *args):
-        """Unlike a regular client our execute goes through the internal
-        command buffers which just return eventual results.
-        """
         buf = self._get_command_buffer(args[0], args[1:])
         return buf.enqueue_command(args[0], args[1:])
 
@@ -265,8 +267,54 @@ class RoutingClient(BaseClient):
 
     def cancel(self):
         """Cancels all outstanding requests."""
-        for er in self.active_command_buffers.values():
-            er.close()
+        for command_buffer in self.active_command_buffers.values():
+            command_buffer.close()
+
+
+class RoutingClient(RoutingBaseClient):
+    """A client that can route to individual targets."""
+
+    def __init__(self, cluster):
+        RoutingBaseClient.__init__(self, connection_pool=RoutingPool(cluster))
+
+    # Standard redis methods
+
+    def execute_command(self, *args, **options):
+        "Execute a command and return a parsed response"
+        pool = self.connection_pool
+        command_name = args[0]
+        command_args = args[1:]
+        router = self.connection_pool.cluster.get_router()
+        host_id = router.get_host(command_name, command_args)
+        connection = pool.get_connection(command_name, shard_hint=host_id)
+        try:
+            connection.send_command(*args)
+            return self.parse_response(connection, command_name, **options)
+        except (ConnectionError, TimeoutError) as e:
+            connection.disconnect()
+            if not connection.retry_on_timeout and isinstance(e, TimeoutError):
+                raise
+            connection.send_command(*args)
+            return self.parse_response(connection, command_name, **options)
+        finally:
+            pool.release(connection)
+
+    # Custom Public API
+
+    def get_mapping_client(self, max_concurrency=64):
+        """Returns a thread unsafe mapping client.  This client works
+        similar to a redis pipeline and returns eventual result objects.
+        It needs to be joined on to work properly.  Instead of using this
+        directly you shold use the :meth:`map` context manager which
+        automatically joins.
+        """
+        return MappingClient(connection_pool=self.connection_pool,
+                             max_concurrency=max_concurrency)
+
+    def map(self, timeout=None, max_concurrency=64):
+        """Returns a context manager for a map operation."""
+        return MapManager(self.get_mapping_client(max_concurrency),
+                          timeout=timeout)
 
 
 class LocalClient(BaseClient):
@@ -279,3 +327,25 @@ class LocalClient(BaseClient):
             raise TypeError('The local client needs a connection pool')
         BaseClient.__init__(self, cluster, connection_pool=connection_pool,
                             **kwargs)
+
+
+class MapManager(object):
+    """Helps with mapping."""
+
+    def __init__(self, mapping_client, timeout):
+        self.mapping_client = mapping_client
+        self.timeout = timeout
+        self.entered = None
+
+    def __enter__(self):
+        self.entered = time.time()
+        return self.mapping_client
+
+    def __exit__(self, exc_type, exc_value, tb):
+        if exc_type is not None:
+            self.mapping_client.cancel()
+        else:
+            timeout = self.timeout
+            if timeout is not None:
+                timeout = max(1, timeout - (time.time() - self.started))
+            self.mapping_client.join(timeout=timeout)

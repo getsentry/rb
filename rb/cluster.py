@@ -1,5 +1,3 @@
-import time
-
 from redis.connection import ConnectionPool, UnixDomainSocketConnection
 
 from threading import Lock
@@ -49,27 +47,6 @@ def _iter_hosts(iterable):
         else:
             cfg = item
         yield cfg
-
-
-class MapManager(object):
-
-    def __init__(self, client, timeout):
-        self.client = client
-        self.timeout = timeout
-        self.entered = None
-
-    def __enter__(self):
-        self.entered = time.time()
-        return self.client
-
-    def __exit__(self, exc_type, exc_value, tb):
-        if exc_type is not None:
-            self.client.cancel()
-        else:
-            timeout = self.timeout
-            if timeout is not None:
-                timeout = max(1, timeout - (time.time() - self.started))
-            self.client.join(timeout=timeout)
 
 
 class Cluster(object):
@@ -177,18 +154,17 @@ class Cluster(object):
         return LocalClient(
             self, connection_pool=self.get_pool_for_host(host_id))
 
-    def get_routing_client(self, max_concurrency=64):
-        """Returns a routing client.  This client can operate
-        automatically across the routing targets but instead of returning
-        results directly it will return result objects that you need to
-        await.
-
-        This client must not be shared across threads!
+    def get_routing_client(self):
+        """Returns a routing client.  This client is able to automatically
+        route the requests to the individual hosts.  It's thread safe and
+        can be used similar to the host local client but it will refused
+        to execute commands that cannot be directly routed to an
+        individual node.
         """
-        return RoutingClient(self, max_concurrency=max_concurrency)
+        return RoutingClient(self)
 
-    def map(self, timeout=None):
-        """Shortcut context manager for getting a routing client and joining
-        for the result.
+    def map(self, *args, **kwargs):
+        """Shortcut context manager for getting a routing client, beginning
+        a map operation and joining over the result.
         """
-        return MapManager(self.get_routing_client(), timeout)
+        return self.get_routing_client().map(*args, **kwargs)

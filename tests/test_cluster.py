@@ -44,7 +44,7 @@ def test_router_access():
 def test_basic_cluster():
     iterations = 10000
 
-    with make_test_cluster(servers=8, databases_each=32) as cluster:
+    with make_test_cluster() as cluster:
         with cluster.map() as client:
             for x in xrange(iterations):
                 client.set('key-%06d' % x, x)
@@ -54,3 +54,14 @@ def test_basic_cluster():
                 responses.append(client.get('key-%06d' % x))
         ref_sum = sum(int(x.value) for x in responses)
         assert ref_sum == sum(xrange(iterations))
+
+
+def test_simple_api():
+    with make_test_cluster() as cluster:
+        client = cluster.get_routing_client()
+        with client.map() as map_client:
+            for x in xrange(10):
+                map_client.set('key:%s' % x, x)
+
+        for x in xrange(10):
+            assert client.get('key:%d' % x) == str(x)
