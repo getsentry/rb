@@ -21,7 +21,6 @@ class BaseRouter(object):
     retryable = False
 
     def __init__(self, cluster=None):
-        self._ready = False
         # this is a weakref because the router is cached on the cluster
         # and otherwise we end up in circular reference land and we are
         # having problems being garbage collected.
@@ -60,21 +59,10 @@ class BaseRouter(object):
 
     def get_host(self, command, args):
         """Returns the host this command should be executed against."""
-        if not self._ready:
-            if not self.setup_router(args=args):
-                raise UnableToSetupRouter()
-            self._ready = True
-
         args = self.pre_routing(command=command, args=args)
         host_id = self.route(command=command, args=args)
         return self.post_routing(command=command, args=args,
                                  host_id=host_id)
-
-    def setup_router(self, args):
-        """Perform any initialization for the router Returns False if
-        setup could not be completed.
-        """
-        return True
 
     def pre_routing(self, command, args):
         """Perform any prerouting with this method and return the args.
@@ -111,6 +99,9 @@ class ConsistentHashingRouter(BaseRouter):
         BaseRouter.__init__(self, cluster)
         self._host_id_id_map = {}
         self._down_connections = {}
+        self._host_id_id_map = dict(self.cluster.hosts.items())
+        self._hash_lock = Lock()
+        self._hash = Ketama(self._host_id_id_map.values())
 
     def check_down_connections(self):
         now = time.time()
@@ -127,12 +118,6 @@ class ConsistentHashingRouter(BaseRouter):
         self._down_connections.pop(host_id, None)
         with self._hash_lock:
             self._hash.add_node(self._host_id_id_map[host_id])
-
-    def setup_router(self, args):
-        self._host_id_id_map = dict(self.cluster.hosts.items())
-        self._hash_lock = Lock()
-        self._hash = Ketama(self._host_id_id_map.values())
-        return True
 
     def pre_routing(self, command, args):
         self.check_down_connections()
