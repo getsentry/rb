@@ -125,6 +125,9 @@ class ConsistentHashingRouter(BaseRouter):
 
     def route(self, command, args):
         key = self.get_key(command, args)
+        if key is None:
+            raise UnroutableCommand('Without a key no destination can be '
+                                    'determined.')
         with self._hash_lock:
             return self._hash.get_node(key)
 
@@ -141,6 +144,9 @@ class PartitionRouter(BaseRouter):
 
     def route(self, command, args):
         key = self.get_key(command, args)
+        if key is None:
+            raise UnroutableCommand('Without a key no destination can be '
+                                    'determined.')
         if isinstance(key, unicode):
             k = key.encode('utf-8')
         else:

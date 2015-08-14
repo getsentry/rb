@@ -154,6 +154,16 @@ class Cluster(object):
         return LocalClient(
             self, connection_pool=self.get_pool_for_host(host_id))
 
+    def get_local_client_for_key(self, key):
+        """Similar to :meth:`get_local_client_for_key` but returns the
+        client based on what the router says the key destination is.
+        """
+        # XXX: the router interface is stupid.  It should route just by
+        # the key but the primary input method is the redis command :-/
+        router = self.get_router()
+        host_id = router.get_host('GET', [key])
+        return self.get_local_client(host_id)
+
     def get_routing_client(self):
         """Returns a routing client.  This client is able to automatically
         route the requests to the individual hosts.  It's thread safe and
