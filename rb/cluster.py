@@ -4,8 +4,8 @@ from redis.connection import ConnectionPool, UnixDomainSocketConnection
 
 from threading import Lock
 
-from abanico.router import PartitionRouter
-from abanico.clients import RoutingClient, LocalClient
+from rb.router import PartitionRouter
+from rb.clients import RoutingClient, LocalClient
 
 
 class HostInfo(object):

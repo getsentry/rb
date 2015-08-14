@@ -1,7 +1,7 @@
 import pytest
 
-from abanico.cluster import Cluster
-from abanico.router import UnroutableCommand
+from rb.cluster import Cluster
+from rb.router import UnroutableCommand
 
 
 def test_router_key_routing():

@@ -8,7 +8,7 @@ import tempfile
 from contextlib import contextmanager
 from subprocess import Popen, PIPE
 
-from abanico.cluster import Cluster
+from rb.cluster import Cluster
 
 
 devnull = open(os.devnull, 'r+')

@@ -1,4 +1,4 @@
-from abanico.ketama import Ketama
+from rb.ketama import Ketama
 
 
 def test_basic():

@@ -1,5 +1,5 @@
-from abanico.cluster import Cluster
-from abanico.testing import make_test_cluster
+from rb.cluster import Cluster
+from rb.testing import make_test_cluster
 
 
 def test_basic_interface():

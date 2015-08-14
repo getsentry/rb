@@ -1,3 +1,5 @@
-# Abanico
+# rb
 
-Also known as the library to be renamed.
+rb - the redis blaster.
+
+The fastest way to talk to many redis nodes.

@@ -4,8 +4,8 @@ from weakref import ref as weakref
 from binascii import crc32
 from threading import Lock
 
-from abanico.ketama import Ketama
-from abanico._rediscommands import COMMANDS
+from rb.ketama import Ketama
+from rb._rediscommands import COMMANDS
 
 
 class UnableToSetupRouter(Exception):
