@@ -158,7 +158,7 @@ class Cluster(object):
         """Similar to :meth:`get_local_client_for_key` but returns the
         client based on what the router says the key destination is.
         """
-        return self.get_local_client(self.get_router().route(key))
+        return self.get_local_client(self.get_router().get_host_for_key(key))
 
     def get_routing_client(self):
         """Returns a routing client.  This client is able to automatically

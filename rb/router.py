@@ -50,10 +50,9 @@ class BaseRouter(object):
 
     def get_host_for_command(self, command, args):
         """Returns the host this command should be executed against."""
-        key = self.get_key(command, args)
-        return self.route(key)
+        return self.get_host_for_key(self.get_key(command, args))
 
-    def route(self, key):
+    def get_host_for_key(self, key):
         """Perform routing and return host_id of the target."""
         raise NotImplementedError()
 
@@ -69,7 +68,7 @@ class ConsistentHashingRouter(BaseRouter):
         self._host_id_id_map = dict(self.cluster.hosts.items())
         self._hash = Ketama(self._host_id_id_map.values())
 
-    def route(self, key):
+    def get_host_for_key(self, key):
         rv = self._hash.get_node(key)
         if rv is None:
             raise UnroutableCommand('Did not find a suitable host for the key.')
@@ -81,7 +80,7 @@ class PartitionRouter(BaseRouter):
     single nodes based on a simple crc32 % node_count setup.
     """
 
-    def route(self, key):
+    def get_host_for_key(self, key):
         if isinstance(key, unicode):
             k = key.encode('utf-8')
         else:
