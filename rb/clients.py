@@ -227,6 +227,8 @@ class MappingClient(RoutingBaseClient):
 
     def _get_readable_command_buffers(self, timeout=None):
         """Return a list of all command buffers that are readable."""
+        # XXX: select is fucking awful.  We should use poll if available
+        # but i'm too lazy to do this right now.
         buffers = self.active_command_buffers.values()
         return select.select(buffers, [], [], timeout)[0]
 
