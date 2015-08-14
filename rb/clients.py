@@ -7,11 +7,16 @@ from redis import StrictRedis
 from redis.exceptions import ConnectionError, TimeoutError
 
 
+def assert_open(client):
+    if client.closed:
+        raise ValueError('I/O operation on closed file')
+
+
 class EventualResult(object):
     """Helper that holds data for an eventually available result value."""
 
     def __init__(self, command_buffer):
-        self.command_buffer = command_buffer
+        self._command_buffer = command_buffer
         self.value = None
         self.result_ready = False
 
@@ -23,7 +28,7 @@ class EventualResult(object):
 
     def wait_for_result(self):
         if not self.result_ready:
-            self.command_buffer.wait_for_specific_result(self)
+            self._command_buffer.wait_for_specific_result(self)
         return self.value
 
     def __repr__(self):
@@ -54,15 +59,11 @@ class CommandBuffer(object):
         """Indicates if the command buffer is closed."""
         return self.connection is None or self.connection._sock is None
 
-    def __assert_open(self):
-        if self.closed:
-            raise ValueError('I/O operation on closed file')
-
     def fileno(self):
         """Returns the file number of the underlying connection's socket
         to be able to select over it.
         """
-        self.__assert_open()
+        assert_open(self)
         return self.connection._sock.fileno()
 
     def close(self):
@@ -71,14 +72,14 @@ class CommandBuffer(object):
 
     def enqueue_command(self, command_name, args):
         """Enqueue a new command into this pipeline."""
-        self.__assert_open()
+        assert_open(self)
         er = EventualResult(self)
         self.commands.append((command_name, args, er))
         return er
 
     def send_pending_requests(self):
         """Sends all pending requests into the connection."""
-        self.__assert_open()
+        assert_open(self)
         unsent_commands = self.commands[self.last_command_sent:]
         if not unsent_commands:
             return
@@ -92,7 +93,7 @@ class CommandBuffer(object):
         """Waits for all responses to come back and resolves the
         eventual results.
         """
-        self.__assert_open()
+        assert_open(self)
         pending = self.last_command_sent - self.last_command_received
         if pending <= 0:
             return
@@ -107,7 +108,7 @@ class CommandBuffer(object):
 
     def wait_for_specific_result(self, er):
         """Waits for an eventual result."""
-        self.__assert_open()
+        assert_open(self)
         for idx, (command_name, args, other_er) in enumerate(self.commands):
             if other_er is er:
                 break
