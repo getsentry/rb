@@ -200,9 +200,6 @@ class MappingClient(RoutingBaseClient):
         """Returns the command buffer for the given command and arguments."""
         router = self.connection_pool.cluster.get_router()
         host_id = router.get_host(command_name, command_args)
-        if host_id is None:
-            raise RuntimeError('Unable to determine host for command')
-
         buf = self.active_command_buffers.get(host_id)
         if buf is not None:
             return buf
@@ -288,9 +285,6 @@ class RoutingClient(RoutingBaseClient):
         command_args = args[1:]
         router = self.connection_pool.cluster.get_router()
         host_id = router.get_host(command_name, command_args)
-        if host_id is None:
-            raise RuntimeError('Unable to determine host for command')
-
         connection = pool.get_connection(command_name, shard_hint=host_id)
         try:
             connection.send_command(*args)
