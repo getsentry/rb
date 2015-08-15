@@ -9,6 +9,7 @@
 """
 from rb.cluster import Cluster
 from rb.router import BaseRouter, ConsistentHashingRouter, PartitionRouter
+from rb.promise import Promise
 
 
 __all__ = [
@@ -17,4 +18,7 @@ __all__ = [
 
     # router
     'BaseRouter', 'ConsistentHashingRouter', 'PartitionRouter',
+
+    # promise
+    'Promise',
 ]
