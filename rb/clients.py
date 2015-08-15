@@ -41,7 +41,9 @@ class EventualResult(object):
 class CommandBuffer(object):
     """The command buffer is an internal construct """
 
-    def __init__(self, host_id, connection):
+    def __init__(self, client, host_id, connection):
+        # XXX: weakref this
+        self.client = client
         self.host_id = host_id
         self.connection = connection
         self.commands = []
@@ -64,6 +66,10 @@ class CommandBuffer(object):
         assert_open(self)
         return self.connection._sock.fileno()
 
+    def close(self):
+        """Invalidates the command buffer for future usage."""
+        self.client._release_command_buffer(self)
+
     def enqueue_command(self, command_name, args):
         """Enqueue a new command into this pipeline."""
         assert_open(self)
@@ -83,7 +89,7 @@ class CommandBuffer(object):
         self.connection.send_packed_command(all_cmds)
         self.last_command_sent += len(unsent_commands)
 
-    def wait_for_responses(self, client):
+    def wait_for_responses(self):
         """Waits for all responses to come back and resolves the
         eventual results.
         """
@@ -95,7 +101,8 @@ class CommandBuffer(object):
         for idx in xrange(pending):
             real_idx = self.last_command_received + idx
             command_name, _, er = self.commands[real_idx]
-            value = client.parse_response(self.connection, command_name)
+            value = self.client.parse_response(
+                self.connection, command_name)
             er.resolve(value)
         self.last_command_received += idx
 
@@ -203,7 +210,7 @@ class MappingClient(RoutingBaseClient):
 
         connection = self.connection_pool.get_connection(
             command_name, shard_hint=host_id)
-        buf = CommandBuffer(host_id, connection)
+        buf = CommandBuffer(self, host_id, connection)
         self.active_command_buffers[host_id] = buf
         return buf
 
@@ -234,8 +241,8 @@ class MappingClient(RoutingBaseClient):
             command_buffer.send_pending_requests()
 
         for command_buffer in self._get_readable_command_buffers(timeout):
-            command_buffer.wait_for_responses(self)
-            self._release_command_buffer(command_buffer)
+            command_buffer.wait_for_responses()
+            command_buffer.close()
 
     # Custom Public API
 
@@ -255,13 +262,13 @@ class MappingClient(RoutingBaseClient):
             if remaining is not None:
                 remaining -= (time.time() - now)
             for command_buffer in rv:
-                command_buffer.wait_for_responses(self)
-                self._release_command_buffer(command_buffer)
+                command_buffer.wait_for_responses()
+                command_buffer.close()
 
     def cancel(self):
         """Cancels all outstanding requests."""
         for command_buffer in self.active_command_buffers.values():
-            self._release_command_buffer(command_buffer)
+            command_buffer.close()
 
 
 class RoutingClient(RoutingBaseClient):
