@@ -1,10 +1,10 @@
 @import url("basic.css");
-@import url(http://fonts.googleapis.com/css?family=Lato:light,regular);
+@import url(http://fonts.googleapis.com/css?family=Lato:600);
  
 /* -- page layout ----------------------------------------------------------- */
  
 body {
-    font-family: 'Ubuntu', sans-serif;
+    font-family: 'Verdana', sans-serif;
     font-weight: 300;
     font-size: 17px;
     color: #000;
@@ -88,7 +88,7 @@ div.body h4,
 div.body h5,
 div.body h6 {
     font-family: 'Lato', sans-serif;
-    font-weight: 300;
+    font-weight: 600;
     margin: 30px 0px 10px 0px;
     padding: 0;
     color: black;
@@ -183,7 +183,6 @@ p.admonition-title:after {
 }
 
 pre, tt {
-    font-family: 'Consolas', 'Menlo', 'Deja Vu Sans Mono', 'Bitstream Vera Sans Mono', monospace;
     font-size: 0.85em;
 }
 
