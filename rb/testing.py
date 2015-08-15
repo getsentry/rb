@@ -43,13 +43,11 @@ class Server(object):
             pass
 
 
-@contextmanager
-def make_test_cluster(*args, **kwargs):
-    with TestSetup(*args, **kwargs) as ts:
-        yield ts.make_cluster()
-
-
 class TestSetup(object):
+    """The test setup is a convenient way to spawn multiple redis servers
+    for testing and to shut them down automatically.  This can be used as
+    a context manager to automatically terminate the clients.
+    """
 
     def __init__(self, servers=4, databases_each=8,
                  server_executable='redis-server'):
@@ -68,6 +66,9 @@ class TestSetup(object):
         self.close()
 
     def make_cluster(self):
+        """Creates a correctly configured cluster from the servers
+        spawned.  This also automatically waits for the servers to be up.
+        """
         self.wait_for_servers()
         hosts = []
         host_id = 0
@@ -82,6 +83,7 @@ class TestSetup(object):
         return Cluster(hosts)
 
     def spawn_server(self):
+        """Spawns a new server and adds it to the pool."""
         socket_path = os.path.join(self._fd_dir, str(uuid.uuid4()))
         cl = Popen([self.server_executable, '-'], stdin=PIPE,
                    stdout=devnull)
@@ -99,6 +101,7 @@ class TestSetup(object):
         self.servers.append(Server(cl, socket_path))
 
     def wait_for_servers(self, timeout=10):
+        """Waits for all servers to to be up and running."""
         unconnected_servers = dict((x.socket_path, x)
                                    for x in self.servers)
         now = time.time()
@@ -115,6 +118,7 @@ class TestSetup(object):
         return True
 
     def close(self):
+        """Closes the test setup which shuts down all redis servers."""
         for server in self.servers:
             server.signal_stop()
         for server in self.servers:
@@ -125,4 +129,24 @@ class TestSetup(object):
             pass
 
     def __del__(self):
-        self.close()
+        try:
+            self.close()
+        except Exception:
+            pass
+
+
+@contextmanager
+def make_test_cluster(*args, **kwargs):
+    """Convenient shortcut for creating a test setup and then a cluster
+    from it.  This must be used as a context manager::
+
+        from rb.testing import make_test_cluster
+        with make_test_cluster() as cluster:
+            ...
+    """
+    with TestSetup(*args, **kwargs) as ts:
+        cluster = ts.make_cluster()
+        try:
+            yield cluster
+        finally:
+            cluster.disconnect_pools()

@@ -39,3 +39,34 @@ def test_success_callbacks():
         results.append(value)
 
     assert results == [42, 23]
+
+
+def test_failure_callbacks():
+    results = []
+
+    p = Promise()
+    assert p.is_pending
+
+    @p.add_errback
+    def on_error(value):
+        results.append(value)
+
+    assert results == []
+    p.reject(42)
+    assert results == [42]
+
+    p = Promise.rejected(23)
+
+    @p.add_errback
+    def on_error2(value):
+        results.append(value)
+
+    assert results == [42, 23]
+
+
+def test_promise_then():
+    p = Promise.resolved([1, 2, 3])
+    def on_success(value):
+        return value + [4]
+    p2 = p.then(success=on_success)
+    assert p2.value == [1, 2, 3, 4]

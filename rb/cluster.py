@@ -50,6 +50,22 @@ def _iter_hosts(iterable):
 
 
 class Cluster(object):
+    """The cluster is the core object behind rb.  It holds the connection
+    pools to the individual nodes and can be shared for the duration of
+    the application in a central location.
+
+    Basic example of a cluster over four redis instances with the default
+    router::
+
+        cluster = Cluster(hosts={
+            0: {'port': 6379},
+            1: {'port': 6380},
+            2: {'port': 6381},
+            3: {'port': 6382},
+        }, host_defaults={
+            'host': '127.0.0.1',
+        })
+    """
 
     def __init__(self, hosts, host_defaults=None, pool_cls=None,
                  pool_options=None, router_cls=None, router_options=None):
@@ -72,7 +88,9 @@ class Cluster(object):
 
     def add_host(self, host_id=None, host='localhost', port=6379,
                  unix_socket_path=None, db=0):
-        """Adds a new host to the cluster."""
+        """Adds a new host to the cluster.  This is only really useful for
+        unittests.
+        """
         if host_id is None:
             raise RuntimeError('Host ID is required')
         with self._lock:
@@ -85,7 +103,9 @@ class Cluster(object):
             self._hosts_age += 1
 
     def remove_host(self, host_id):
-        """Removes a host from the client."""
+        """Removes a host from the client.  This only really useful for
+        unittests.
+        """
         with self._lock:
             rv = self._hosts.pop(host_id, None) is not None
             pool = self._pools.pop(host_id, None)
@@ -95,7 +115,7 @@ class Cluster(object):
             return rv
 
     def disconnect_pools(self):
-        """Disconnects all internal pools."""
+        """Disconnects all connections from the internal pools."""
         with self._lock:
             for pool in self._pools.itervalues():
                 pool.disconnect()
@@ -103,7 +123,11 @@ class Cluster(object):
 
     def get_router(self):
         """Returns the router for the cluster.  If the cluster reconfigures
-        the router will be recreated.
+        the router will be recreated.  Usually you do not need to interface
+        with the router yourself as the cluster's routing client does that
+        automatically.
+
+        This returns an instance of :class:`BaseRouter`.
         """
         cached_router = self._router
         ref_age = self._hosts_age
@@ -119,7 +143,13 @@ class Cluster(object):
             return router
 
     def get_pool_for_host(self, host_id):
-        """Returns the connection pool for the given host."""
+        """Returns the connection pool for the given host.
+
+        This connection pool is used by the redis clients to make sure
+        that it does not have to reconnect constantly.  If you want to use
+        a custom redis client you can pass this in as connection pool
+        manually.
+        """
         if isinstance(host_id, HostInfo):
             host_info = host_id
             host_id = host_info.host_id
@@ -166,11 +196,23 @@ class Cluster(object):
         can be used similar to the host local client but it will refused
         to execute commands that cannot be directly routed to an
         individual node.
+
+        See :class:`RoutingClient` for more information.
         """
         return RoutingClient(self)
 
     def map(self, *args, **kwargs):
         """Shortcut context manager for getting a routing client, beginning
         a map operation and joining over the result.
+
+        In the context manager the client available is a
+        :class:`MappingClient`.  Example usage::
+
+            results = {}
+            with cluster.map() as client:
+                for key in keys_to_fetch:
+                    results[key] = client.get(key)
+            for key, promise in results.iteritems():
+                print '%s => %s' % (key, promise.value)
         """
         return self.get_routing_client().map(*args, **kwargs)

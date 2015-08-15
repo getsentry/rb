@@ -235,7 +235,6 @@ class RoutingClient(RoutingBaseClient):
     # Standard redis methods
 
     def execute_command(self, *args, **options):
-        "Execute a command and return a parsed response"
         pool = self.connection_pool
         command_name = args[0]
         command_args = args[1:]
@@ -262,12 +261,27 @@ class RoutingClient(RoutingBaseClient):
         It needs to be joined on to work properly.  Instead of using this
         directly you shold use the :meth:`map` context manager which
         automatically joins.
+
+        Returns an instance of :class:`MappingClient`.
         """
         return MappingClient(connection_pool=self.connection_pool,
                              max_concurrency=max_concurrency)
 
     def map(self, timeout=None, max_concurrency=64):
-        """Returns a context manager for a map operation."""
+        """Returns a context manager for a map operation.  This runs
+        multiple queries in parallel and then joins in the end to collect
+        all results.
+
+        In the context manager the client available is a
+        :class:`MappingClient`.  Example usage::
+
+            results = {}
+            with cluster.map() as client:
+                for key in keys_to_fetch:
+                    results[key] = client.get(key)
+            for key, promise in results.iteritems():
+                print '%s => %s' % (key, promise.value)
+        """
         return MapManager(self.get_mapping_client(max_concurrency),
                           timeout=timeout)
 

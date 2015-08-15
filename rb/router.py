@@ -10,6 +10,9 @@ class UnroutableCommand(Exception):
 
 
 class BaseRouter(object):
+    """Baseclass for all routers.  If you want to implement a custom router
+    this is what you subclass.
+    """
 
     def __init__(self, cluster=None):
         # this is a weakref because the router is cached on the cluster
@@ -19,6 +22,7 @@ class BaseRouter(object):
 
     @property
     def cluster(self):
+        """Reference back to the :class:`Cluster` this router belongs to."""
         rv = self._cluster()
         if rv is None:
             raise RuntimeError('Cluster went away')
@@ -53,7 +57,10 @@ class BaseRouter(object):
         return self.get_host_for_key(self.get_key(command, args))
 
     def get_host_for_key(self, key):
-        """Perform routing and return host_id of the target."""
+        """Perform routing and return host_id of the target.
+
+        Subclasses need to implement this.
+        """
         raise NotImplementedError()
 
 
@@ -77,7 +84,7 @@ class ConsistentHashingRouter(BaseRouter):
 
 class PartitionRouter(BaseRouter):
     """A straightforward router that just individually routes commands to
-    single nodes based on a simple crc32 % node_count setup.
+    single nodes based on a simple ``crc32 % node_count`` setup.
     """
 
     def get_host_for_key(self, key):
