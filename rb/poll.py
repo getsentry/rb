@@ -42,19 +42,22 @@ class PollPoller(BasePoller):
         BasePoller.__init__(self)
         self.pollobj = select.poll()
         self.objects = {}
+        self.fd_to_object = {}
 
     def register(self, key, f):
         BasePoller.register(self, key, f)
         self.pollobj.register(f.fileno(), select.POLLIN | select.POLLHUP)
+        self.fd_to_object[f.fileno()] = f
 
     def unregister(self, key):
         rv = BasePoller.unregister(self, key)
         if rv is not None:
             self.pollobj.unregister(rv.fileno())
+            self.fd_to_object.pop(rv.fileno(), None)
         return rv
 
     def poll(self, timeout=None):
-        return [self.objects[x[0]] for x in
+        return [self.fd_to_object[x[0]] for x in
                 self.pollobj.poll(timeout)]
 
 
