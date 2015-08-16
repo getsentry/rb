@@ -32,35 +32,8 @@ class Promise(object):
     def all(iterable_or_dict):
         """A promise that resolves when all passed promises resolve."""
         if isinstance(iterable_or_dict, dict):
-            pending = set(iterable_or_dict.values())
-            promises = iterable_or_dict.items()
-            as_dict = True
-        else:
-            promises = list(enumerate(iterable_or_dict))
-            pending = set(x[1] for x in promises)
-            as_dict = False
-
-        if not promises:
-            return Promise.resolved({} if as_dict else [])
-
-        rv = Promise()
-
-        def handle_success(promise):
-            def handler(value):
-                pending.discard(promise)
-                if not pending:
-                    if as_dict:
-                        value = dict((k, p.value) for k, p in promises)
-                    else:
-                        value = [x.value for _, x in promises]
-                    rv.resolve(value)
-            return handler
-
-        for _, promise in promises:
-            promise.add_callback(handle_success(promise))
-            promise.add_errback(rv.reject)
-
-        return rv
+            return _promise_from_dict(iterable_or_dict)
+        return _promise_from_iterable(iterable_or_dict)
 
     def resolve(self, value):
         """Resolves the promise with the given value."""
@@ -156,3 +129,46 @@ class Promise(object):
             self.__class__.__name__,
             v,
         )
+
+
+def _promise_from_iterable(iterable):
+    l = list(iterable)
+    if not l:
+        return Promise.resolved([])
+
+    pending = set(l)
+    rv = Promise()
+
+    def handle_success(promise):
+        def handler(value):
+            pending.discard(promise)
+            if not pending:
+                rv.resolve([p.value for p in l])
+        return handler
+
+    for promise in l:
+        promise.add_callback(handle_success(promise))
+        promise.add_errback(rv.reject)
+
+    return rv
+
+
+def _promise_from_dict(d):
+    if not d:
+        return Promise.resolved({})
+    pending = set(d.keys())
+
+    rv = Promise()
+
+    def handle_success(key):
+        def handler(value):
+            pending.discard(key)
+            if not pending:
+                rv.resolve(dict((k, p.value) for k, p in d.iteritems()))
+        return handler
+
+    for key, promise in d.iteritems():
+        promise.add_callback(handle_success(key))
+        promise.add_errback(rv.reject)
+
+    return rv
