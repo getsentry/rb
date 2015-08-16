@@ -5,6 +5,7 @@ python:
   - "pypy"
 
 install:
+  - pip install pytest
   - pip install --editable .
 
 script: make test

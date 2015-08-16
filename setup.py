@@ -19,6 +19,9 @@ setup(
     url='http://github.com/getsentry/rb',
     packages=['rb'],
     description='rb, the redis blaster',
+    install_requires=[
+        'redis>=2.6',
+    ],
     classifiers=[
         'License :: OSI Approved :: Apache Software License',
         'Programming Language :: Python',
