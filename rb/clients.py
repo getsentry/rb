@@ -143,8 +143,8 @@ class MappingClient(RoutingBaseClient):
         RoutingBaseClient.__init__(self, connection_pool=connection_pool)
         # careful.  If you introduce any other variables here, then make
         # sure that FanoutClient.target still works correctly!
-        self.max_concurrency = max_concurrency
-        self.command_buffer_poll = poll()
+        self._max_concurrency = max_concurrency
+        self._command_buffer_poll = poll()
 
     # Standard redis methods
 
@@ -158,17 +158,17 @@ class MappingClient(RoutingBaseClient):
 
     def _get_command_buffer(self, host_id, command_name):
         """Returns the command buffer for the given command and arguments."""
-        buf = self.command_buffer_poll.get(host_id)
+        buf = self._command_buffer_poll.get(host_id)
         if buf is not None:
             return buf
 
-        while len(self.command_buffer_poll) >= self.max_concurrency:
+        while len(self._command_buffer_poll) >= self._max_concurrency:
             self._try_to_clear_outstanding_requests()
 
         connection = self.connection_pool.get_connection(
             command_name, shard_hint=host_id)
         buf = CommandBuffer(host_id, connection)
-        self.command_buffer_poll.register(host_id, buf)
+        self._command_buffer_poll.register(host_id, buf)
         return buf
 
     def _release_command_buffer(self, command_buffer):
@@ -176,7 +176,7 @@ class MappingClient(RoutingBaseClient):
         if command_buffer.closed:
             return
 
-        self.command_buffer_poll.unregister(command_buffer.host_id)
+        self._command_buffer_poll.unregister(command_buffer.host_id)
         self.connection_pool.release(command_buffer.connection)
         command_buffer.connection = None
 
@@ -184,13 +184,13 @@ class MappingClient(RoutingBaseClient):
         """Tries to clear some outstanding requests in the given timeout
         to reduce the concurrency pressure.
         """
-        if not self.command_buffer_poll:
+        if not self._command_buffer_poll:
             return
 
-        for command_buffer in self.command_buffer_poll:
+        for command_buffer in self._command_buffer_poll:
             command_buffer.send_pending_requests()
 
-        for command_buffer in self.command_buffer_poll.poll(timeout):
+        for command_buffer in self._command_buffer_poll.poll(timeout):
             command_buffer.wait_for_responses(self)
             self._release_command_buffer(command_buffer)
 
@@ -202,13 +202,13 @@ class MappingClient(RoutingBaseClient):
         """
         remaining = timeout
 
-        for command_buffer in self.command_buffer_poll:
+        for command_buffer in self._command_buffer_poll:
             command_buffer.send_pending_requests()
 
-        while self.command_buffer_poll and (remaining is None or
-                                            remaining > 0):
+        while self._command_buffer_poll and (remaining is None or
+                                             remaining > 0):
             now = time.time()
-            rv = self.command_buffer_poll.poll(remaining)
+            rv = self._command_buffer_poll.poll(remaining)
             if remaining is not None:
                 remaining -= (time.time() - now)
             for command_buffer in rv:
@@ -217,7 +217,7 @@ class MappingClient(RoutingBaseClient):
 
     def cancel(self):
         """Cancels all outstanding requests."""
-        for command_buffer in self.command_buffer_poll:
+        for command_buffer in self._command_buffer_poll:
             self._release_command_buffer(command_buffer)
 
 
@@ -231,7 +231,7 @@ class FanoutClient(MappingClient):
 
     def __init__(self, hosts, connection_pool, max_concurrency=None):
         MappingClient.__init__(self, connection_pool, max_concurrency)
-        self.target_hosts = hosts
+        self._target_hosts = hosts
         self.__is_retargeted = False
 
     def target(self, hosts):
@@ -241,16 +241,16 @@ class FanoutClient(MappingClient):
         if self.__is_retargeted:
             raise TypeError('Cannot use target more than once.')
         rv = FanoutClient(hosts, connection_pool=self.connection_pool,
-                          max_concurrency=self.max_concurrency)
-        rv.command_buffer_poll = self.command_buffer_poll
-        rv.target_hosts = hosts
+                          max_concurrency=self._max_concurrency)
+        rv._command_buffer_poll = self._command_buffer_poll
+        rv._target_hosts = hosts
         rv.__is_retargeted = True
         return rv
 
     def execute_command(self, *args):
         promises = {}
 
-        hosts = self.target_hosts
+        hosts = self._target_hosts
         if hosts == 'all':
             hosts = self.connection_pool.cluster.hosts.keys()
         elif hosts is None:
