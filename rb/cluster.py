@@ -191,11 +191,13 @@ class Cluster(object):
                     if host_info.ssl:
                         raise TypeError('SSL is not supported for unix '
                                         'domain sockets.')
-                    opts.update(('ssl_' + k, v) for k, v in
-                                (host_info.ssl_options or {}).iteritems())
                 else:
                     opts['host'] = host_info.host
                     opts['port'] = host_info.port
+                    if host_info.ssl:
+                        opts['connection_class'] = SSLConnection
+                        opts.update(('ssl_' + k, v) for k, v in
+                                    (host_info.ssl_options or {}).iteritems())
                 rv = self.pool_cls(**opts)
                 self._pools[host_id] = rv
             return rv
