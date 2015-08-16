@@ -141,6 +141,8 @@ class MappingClient(RoutingBaseClient):
 
     def __init__(self, connection_pool, max_concurrency=None):
         RoutingBaseClient.__init__(self, connection_pool=connection_pool)
+        # careful.  If you introduce any other variables here, then make
+        # sure that FanoutClient.target still works correctly!
         self.max_concurrency = max_concurrency
         self.active_command_buffers = {}
 
