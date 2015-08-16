@@ -1,3 +1,6 @@
+from functools import partial
+
+
 class Promise(object):
     """A promise object that attempts to mirror the ES6 APIs for promise
     objects.  Unlike ES6 promises this one however also directly gives
@@ -18,14 +21,16 @@ class Promise(object):
     def resolved(value):
         """Creates a promise object resolved with a certain value."""
         p = Promise()
-        p.resolve(value)
+        p._state = 'resolved'
+        p.value = value
         return p
 
     @staticmethod
     def rejected(reason):
         """Creates a promise object rejected with a certain value."""
         p = Promise()
-        p.reject(reason)
+        p._state = 'rejected'
+        p.reason = reason
         return p
 
     @staticmethod
@@ -81,21 +86,19 @@ class Promise(object):
         """`True` if the promise was rejected, `False` otherwise."""
         return self._state == 'rejected'
 
-    def add_callback(self, f):
-        """Adds a success callback to the promise."""
-        if self._state == 'pending':
-            self._callbacks.append(f)
-        elif self._state == 'resolved':
-            f(self.value)
-        return f
-
-    def add_errback(self, f):
-        """Adds a error callback to the promise."""
-        if self._state == 'pending':
-            self._errbacks.append(f)
-        elif self._state == 'rejected':
-            f(self.reason)
-        return f
+    def done(self, on_success=None, on_failure=None):
+        """Attaches some callbacks to the promise."""
+        if on_success is not None:
+            if self._state == 'pending':
+                self._callbacks.append(on_success)
+            elif self._state == 'resolved':
+                on_success(self.value)
+        if on_failure is not None:
+            if self._state == 'pending':
+                self._errbacks.append(on_failure)
+            elif self._state == 'rejected':
+                on_failure(self.reason)
+        return self
 
     def then(self, success=None, failure=None):
         """A utility method to add success and/or failure callback to the
@@ -103,22 +106,19 @@ class Promise(object):
         """
         rv = Promise()
 
-        def resolve(v):
+        def on_success(v):
             try:
                 rv.resolve(success(v))
             except Exception as e:
                 rv.reject(e)
 
-        def reject(r):
+        def on_failure(r):
             try:
                 rv.resolve(failure(r))
             except Exception as e:
                 rv.reject(e)
 
-        if success is not None:
-            self.add_callback(resolve)
-        if failure is not None:
-            self.add_callback(reject)
+        self.done(on_success, on_failure)
         return rv
 
     def __repr__(self):
@@ -134,47 +134,43 @@ class Promise(object):
         )
 
 
+def _ensure_promise(value):
+    return value if isinstance(value, Promise) else Promise.resolved(value)
+
+
 def _promise_from_iterable(iterable):
-    l = [x if isinstance(x, Promise) else Promise.resolved(x)
-         for x in iterable]
+    l = [_ensure_promise(x) for x in iterable]
     if not l:
         return Promise.resolved([])
 
     pending = set(l)
     rv = Promise()
 
-    def handle_success(promise):
-        def handler(value):
-            pending.discard(promise)
-            if not pending:
-                rv.resolve([p.value for p in l])
-        return handler
+    def on_success(promise, value):
+        pending.discard(promise)
+        if not pending:
+            rv.resolve([p.value for p in l])
 
     for promise in l:
-        promise.add_callback(handle_success(promise))
-        promise.add_errback(rv.reject)
+        promise.done(partial(on_success, promise), rv.reject)
 
     return rv
 
 
 def _promise_from_dict(d):
+    d = dict((k, _ensure_promise(v)) for k, v in d.iteritems())
     if not d:
         return Promise.resolved({})
-    d = dict((k, (v if isinstance(v, Promise) else Promise.resolved(v)))
-             for k, v in d.iteritems())
-    pending = set(d.keys())
 
+    pending = set(d.keys())
     rv = Promise()
 
-    def handle_success(key):
-        def handler(value):
-            pending.discard(key)
-            if not pending:
-                rv.resolve(dict((k, p.value) for k, p in d.iteritems()))
-        return handler
+    def on_success(key, value):
+        pending.discard(key)
+        if not pending:
+            rv.resolve(dict((k, p.value) for k, p in d.iteritems()))
 
     for key, promise in d.iteritems():
-        promise.add_callback(handle_success(key))
-        promise.add_errback(rv.reject)
+        promise.done(partial(on_success, key), rv.reject)
 
     return rv
