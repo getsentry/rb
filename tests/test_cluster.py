@@ -62,3 +62,14 @@ def test_simple_api(cluster):
 
     for x in xrange(10):
         assert client.get('key:%d' % x) == str(x)
+
+
+def test_promise_api(cluster):
+    results = []
+    with cluster.map() as client:
+        for x in xrange(10):
+            client.set('key-%d' % x, x)
+        for x in xrange(10):
+            promise = client.get('key-%d' % x)
+            promise.then(lambda x: results.append(int(x)))
+    assert sorted(results) == range(10)
