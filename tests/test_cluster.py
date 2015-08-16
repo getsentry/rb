@@ -1,5 +1,6 @@
 import pytest
 from rb.cluster import Cluster
+from rb.router import UnroutableCommand
 
 
 def test_basic_interface():
@@ -70,6 +71,19 @@ def test_simple_api(cluster):
 
     for x in xrange(10):
         assert client.get('key:%d' % x) is None
+
+
+def test_multi_keys_rejected(cluster):
+    client = cluster.get_routing_client()
+
+    # Okay
+    with client.map() as map_client:
+        map_client.delete('key')
+
+    # Not okay
+    with client.map() as map_client:
+        with pytest.raises(UnroutableCommand):
+            map_client.delete('key1', 'key2')
 
 
 def test_promise_api(cluster):
