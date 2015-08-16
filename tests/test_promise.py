@@ -70,3 +70,22 @@ def test_promise_then():
         return value + [4]
     p2 = p.then(success=on_success)
     assert p2.value == [1, 2, 3, 4]
+
+
+def test_promise_all():
+    p = Promise.all([
+        Promise.resolved(1),
+        Promise.resolved(2),
+        Promise.resolved(3),
+    ])
+
+    assert p.is_resolved
+    assert p.value == [1, 2, 3]
+
+    p = Promise.all([
+        Promise.resolved(1),
+        Promise.rejected(2),
+        Promise.resolved(3),
+    ])
+    assert p.is_rejected
+    assert p.reason == 2

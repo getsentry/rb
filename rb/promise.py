@@ -28,6 +28,27 @@ class Promise(object):
         p.reject(reason)
         return p
 
+    @staticmethod
+    def all(iterable):
+        """A promise that resolves when all passed promises resolve."""
+        promises = list(iterable)
+        pending = set(promises)
+
+        rv = Promise()
+
+        def handle_success(promise):
+            def handler(value):
+                pending.discard(promise)
+                if not pending:
+                    rv.resolve([x.value for x in promises])
+            return handler
+
+        for promise in promises:
+            promise.add_callback(handle_success(promise))
+            promise.add_errback(rv.reject)
+
+        return rv
+
     def resolve(self, value):
         """Resolves the promise with the given value."""
         if self is value:
