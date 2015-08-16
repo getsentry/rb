@@ -1,3 +1,4 @@
+import pytest
 from rb.cluster import Cluster
 
 
@@ -84,3 +85,15 @@ def test_fanout_api(cluster):
 
     for host_id in cluster.hosts:
         assert result.value[host_id] == str(host_id)
+
+
+def test_fanout_targeting_api(cluster):
+    with cluster.fanout() as client:
+        client.target(hosts=[0, 1]).set('foo', 42)
+        rv = client.target(hosts='all').get('foo')
+
+    assert rv.value.values().count('42') == 2
+
+    # Without hosts this should fail
+    with cluster.fanout() as client:
+        pytest.raises(RuntimeError, client.get, 'bar')

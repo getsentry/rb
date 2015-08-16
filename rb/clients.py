@@ -237,10 +237,31 @@ class FanoutClient(MappingClient):
     def __init__(self, hosts, connection_pool, max_concurrency=None):
         MappingClient.__init__(self, connection_pool, max_concurrency)
         self.target_hosts = hosts
+        self.__is_retargeted = False
+
+    def target(self, hosts):
+        """Temporarily retarget the client for one call.  This is useful
+        when having to deal with a subset of hosts for one call.
+        """
+        if self.__is_retargeted:
+            raise TypeError('Cannot use target more than once.')
+        rv = FanoutClient(hosts, connection_pool=self.connection_pool,
+                          max_concurrency=self.max_concurrency)
+        rv.active_command_buffers = self.active_command_buffers
+        rv.target_hosts = hosts
+        rv.__is_retargeted = True
+        return rv
 
     def execute_command(self, *args):
         promises = {}
-        for host_id in self.target_hosts:
+
+        hosts = self.target_hosts
+        if hosts == 'all':
+            hosts = self.connection_pool.cluster.hosts.keys()
+        elif hosts is None:
+            raise RuntimeError('Fanout client was not targeted to hosts.')
+
+        for host_id in hosts:
             buf = self._get_command_buffer(host_id, args[0])
             promises[host_id] = buf.enqueue_command(args[0], args[1:])
         return Promise.all(promises)
@@ -309,7 +330,7 @@ class RoutingClient(RoutingBaseClient):
         return MapManager(self.get_mapping_client(max_concurrency),
                           timeout=timeout)
 
-    def fanout(self, hosts, timeout=None, max_concurrency=64):
+    def fanout(self, hosts=None, timeout=None, max_concurrency=64):
         """Returns a context manager for a map operation that fans out to
         manually specified hosts instead of using the routing system.  This
         can for instance be used to empty the database on all hosts.  The
@@ -323,9 +344,11 @@ class RoutingClient(RoutingBaseClient):
 
         The `hosts` parameter is a list of `host_id`\s or alternatively the
         string ``'all'`` to send the commands to all hosts.
+
+        The fanout APi needs to be used with a lot of care as it can cause
+        a lot of damage when keys are written to hosts that do not expect
+        them.
         """
-        if hosts == 'all':
-            hosts = self.connection_pool.cluster.hosts.keys()
         return MapManager(self.get_fanout_client(hosts, max_concurrency),
                           timeout=timeout)
 
