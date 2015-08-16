@@ -1,7 +1,7 @@
 import pytest
 
 from rb.cluster import Cluster
-from rb.router import UnroutableCommand
+from rb.router import UnroutableCommand, extract_keys
 
 
 def test_router_key_routing():
@@ -12,7 +12,6 @@ def test_router_key_routing():
     router = cluster.get_router()
     assert router.get_key('INCR', ['foo']) == 'foo'
     assert router.get_key('GET', ['bar']) == 'bar'
-    assert router.get_key('CLIENT LIST', []) is None
 
     with pytest.raises(UnroutableCommand):
         router.get_key('MGET', ['foo', 'bar', 'baz'])
@@ -36,3 +35,12 @@ def test_router_basics():
     assert router.get_host_for_key('foo') == 1
     assert router.get_host_for_key('bar') == 2
     assert router.get_host_for_key('baz') == 0
+
+
+def test_key_extraction():
+    assert extract_keys(['foo'], (1, 1, 1))
+    assert extract_keys(['foo', 'value', 'foo2', 'value2'],
+                        (1, -1, 2)) == ['foo', 'foo2']
+    assert extract_keys(['extra', 'foo', 'value', 'foo2', 'value2'],
+                        (2, -1, 2)) == ['foo', 'foo2']
+    assert extract_keys(['foo', 'foo2'], (1, -1, 1)) == ['foo', 'foo2']

@@ -64,6 +64,13 @@ def test_simple_api(cluster):
     for x in xrange(10):
         assert client.get('key:%d' % x) == str(x)
 
+    with client.map() as map_client:
+        for x in xrange(10):
+            map_client.delete('key:%s' % x)
+
+    for x in xrange(10):
+        assert client.get('key:%d' % x) is None
+
 
 def test_promise_api(cluster):
     results = []
