@@ -102,16 +102,19 @@ class Promise(object):
         promise which will also return another promise in the process.
         """
         rv = Promise()
+
         def resolve(v):
             try:
                 rv.resolve(success(v))
             except Exception as e:
                 rv.reject(e)
+
         def reject(r):
             try:
                 rv.resolve(failure(r))
             except Exception as e:
                 rv.reject(e)
+
         if success is not None:
             self.add_callback(resolve)
         if failure is not None:
@@ -132,7 +135,8 @@ class Promise(object):
 
 
 def _promise_from_iterable(iterable):
-    l = list(iterable)
+    l = [x if isinstance(x, Promise) else Promise.resolved(x)
+         for x in iterable]
     if not l:
         return Promise.resolved([])
 
@@ -156,6 +160,8 @@ def _promise_from_iterable(iterable):
 def _promise_from_dict(d):
     if not d:
         return Promise.resolved({})
+    d = dict((k, (v if isinstance(v, Promise) else Promise.resolved(v)))
+             for k, v in d.iteritems())
     pending = set(d.keys())
 
     rv = Promise()

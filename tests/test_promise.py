@@ -66,8 +66,10 @@ def test_failure_callbacks():
 
 def test_promise_then():
     p = Promise.resolved([1, 2, 3])
+
     def on_success(value):
         return value + [4]
+
     p2 = p.then(success=on_success)
     assert p2.value == [1, 2, 3, 4]
 
@@ -106,3 +108,13 @@ def test_promise_all():
     ])
     assert p.is_rejected
     assert p.reason == 2
+
+
+def test_auto_coercion():
+    p = Promise.all([1, 2, Promise.resolved(3)])
+    assert p.is_resolved
+    assert p.value == [1, 2, 3]
+
+    p = Promise.all({1: 1, 2: 2, 3: Promise.resolved(3)})
+    assert p.is_resolved
+    assert p.value == {1: 1, 2: 2, 3: 3}
