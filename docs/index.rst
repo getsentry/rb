@@ -1,5 +1,5 @@
-rb — the redis blaster
-======================
+rb: the redis blaster
+=====================
 
 .. module:: rb
 

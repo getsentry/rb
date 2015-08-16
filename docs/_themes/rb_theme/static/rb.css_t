@@ -1,5 +1,5 @@
 @import url("basic.css");
-@import url(http://fonts.googleapis.com/css?family=Lato:600);
+@import url(http://fonts.googleapis.com/css?family=Roboto+Mono:400,700italic,700,400italic);
  
 /* -- page layout ----------------------------------------------------------- */
  
@@ -20,7 +20,7 @@ div.documentwrapper {
 
 div.bodywrapper {
     margin: 40px auto 0 auto;
-    width: 700px;
+    max-width: 800px;
 }
 
 hr {
@@ -68,17 +68,20 @@ div.related a {
 /* -- body styles ----------------------------------------------------------- */
  
 a {
-    color: #215974;
-    text-decoration: underline;
+    color: white;
+    background: black;
+    font-weight: bold;
+    text-decoration: none;
 }
  
 a:hover {
     color: #888;
+    background: transparent;
     text-decoration: underline;
 }
 
 div.body {
-    padding-bottom: 40px; /* saved for footer */
+    padding-bocodeom: 40px; /* saved for footer */
 }
  
 div.body h1,
@@ -87,8 +90,8 @@ div.body h3,
 div.body h4,
 div.body h5,
 div.body h6 {
-    font-family: 'Lato', sans-serif;
-    font-weight: 600;
+    font-family: 'Verdana', sans-serif;
+    font-weight: bold;
     margin: 30px 0px 10px 0px;
     padding: 0;
     color: black;
@@ -131,7 +134,7 @@ div.admonition {
     margin: 20px -30px;
     padding: 10px 30px;
     border-top: 1px solid #ccc;
-    border-bottom: 1px solid #ccc;
+    border-bocodeom: 1px solid #ccc;
 }
 
 div.admonition p.admonition-title {
@@ -144,7 +147,7 @@ div.admonition p.admonition-title {
 }
 
 div.admonition p.last {
-    margin-bottom: 0;
+    margin-bocodeom: 0;
 }
 
 div.highlight{
@@ -182,18 +185,19 @@ p.admonition-title:after {
     content: ":";
 }
 
-pre, tt {
-    font-size: 0.85em;
+pre, code {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 1em;
 }
 
 img.screenshot {
 }
 
-tt.descname, tt.descclassname {
+code.descname, code.descclassname {
     font-size: 0.95em;
 }
 
-tt.descname {
+code.descname {
     padding-right: 0.08em;
 }
 
@@ -250,32 +254,24 @@ dl dd {
 }
  
 pre {
-    padding: 0;
-    margin: 15px -30px;
-    padding: 8px;
-    line-height: 1.3em;
-    padding: 7px 30px;
+    margin: 15px 0;
+    line-height: 1.4em;
+    padding: 10px 20px;
     background: #eee;
-    border-radius: 2px;
-    -moz-border-radius: 2px;
-    -webkit-border-radius: 2px;
 }
 
-dl pre {
-    margin-left: -60px;
-    padding-left: 60px;
+a.reference.internal {
+    background: transparent;
+    color: black;
 }
 
-tt {
-    background-color: #ecf0f3;
+code, a code, code.xref {
+    background-color: #eee;
     color: #222;
     /* padding: 1px 2px; */
 }
 
-tt.xref, a tt {
-    background-color: #FBFBFB;
-}
-
-a:hover tt {
-    background: #EEE;
+a:hover code {
+    background: black;
+    color: white;
 }
