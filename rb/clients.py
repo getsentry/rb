@@ -1,5 +1,4 @@
 import time
-import select
 
 from weakref import ref as weakref
 
@@ -7,6 +6,7 @@ from redis import StrictRedis
 from redis.exceptions import ConnectionError, TimeoutError
 
 from rb.promise import Promise
+from rb.poll import poll
 
 
 def assert_open(client):
@@ -145,6 +145,7 @@ class MappingClient(RoutingBaseClient):
         # sure that FanoutClient.target still works correctly!
         self.max_concurrency = max_concurrency
         self.active_command_buffers = {}
+        self.command_buffer_poll = poll()
 
     # Standard redis methods
 
@@ -169,6 +170,7 @@ class MappingClient(RoutingBaseClient):
             command_name, shard_hint=host_id)
         buf = CommandBuffer(host_id, connection)
         self.active_command_buffers[host_id] = buf
+        self.command_buffer_poll.register(buf)
         return buf
 
     def _release_command_buffer(self, command_buffer):
@@ -177,15 +179,9 @@ class MappingClient(RoutingBaseClient):
             return
 
         self.active_command_buffers.pop(command_buffer.host_id, None)
+        self.command_buffer_poll.unregister(command_buffer)
         self.connection_pool.release(command_buffer.connection)
         command_buffer.connection = None
-
-    def _get_readable_command_buffers(self, timeout=None):
-        """Return a list of all command buffers that are readable."""
-        # XXX: select is fucking awful.  We should use poll if available
-        # but i'm too lazy to do this right now.
-        buffers = self.active_command_buffers.values()
-        return select.select(buffers, [], [], timeout)[0]
 
     def _try_to_clear_outstanding_requests(self, timeout=1.0):
         """Tries to clear some outstanding requests in the given timeout
@@ -197,7 +193,7 @@ class MappingClient(RoutingBaseClient):
         for command_buffer in self.active_command_buffers.values():
             command_buffer.send_pending_requests()
 
-        for command_buffer in self._get_readable_command_buffers(timeout):
+        for command_buffer in self.command_buffer_poll.poll(timeout):
             command_buffer.wait_for_responses(self)
             self._release_command_buffer(command_buffer)
 
@@ -215,7 +211,7 @@ class MappingClient(RoutingBaseClient):
         while self.active_command_buffers and (remaining is None or
                                                remaining > 0):
             now = time.time()
-            rv = self._get_readable_command_buffers(remaining)
+            rv = self.command_buffer_poll.poll(remaining)
             if remaining is not None:
                 remaining -= (time.time() - now)
             for command_buffer in rv:
@@ -250,6 +246,7 @@ class FanoutClient(MappingClient):
         rv = FanoutClient(hosts, connection_pool=self.connection_pool,
                           max_concurrency=self.max_concurrency)
         rv.active_command_buffers = self.active_command_buffers
+        rv.command_buffer_poll = self.command_buffer_poll
         rv.target_hosts = hosts
         rv.__is_retargeted = True
         return rv
