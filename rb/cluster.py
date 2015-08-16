@@ -1,4 +1,5 @@
-from redis.connection import ConnectionPool, UnixDomainSocketConnection
+from redis.connection import ConnectionPool, UnixDomainSocketConnection, \
+     SSLConnection
 
 from threading import Lock
 
@@ -8,12 +9,16 @@ from rb.clients import RoutingClient, LocalClient
 
 class HostInfo(object):
 
-    def __init__(self, host_id, host, port, unix_socket_path=None, db=0):
+    def __init__(self, host_id, host, port, unix_socket_path=None, db=0,
+                 password=None, ssl=False, ssl_options=None):
         self.host_id = host_id
         self.host = host
         self.unix_socket_path = unix_socket_path
         self.port = port
         self.db = db
+        self.password = password
+        self.ssl = ssl
+        self.ssl_options = ssl_options
 
     def __eq__(self, other):
         if self.__class__ is not other.__class__:
@@ -65,6 +70,14 @@ class Cluster(object):
         }, host_defaults={
             'host': '127.0.0.1',
         })
+
+    `hosts` is a dictionary of hosts which maps the number host IDs to
+    configuration parameters.  The parameters correspond to the signature
+    of the :meth:`add_host` function.  The defaults for these parameters
+    are pulled from `host_defaults`.  To override the pool class the
+    `pool_cls` and `pool_options` parameters can be used.  The same
+    applies to `router_cls` and `router_options` for the router.  The pool
+    options are useful for setting socket timeouts and similar parameters.
     """
 
     def __init__(self, hosts, host_defaults=None, pool_cls=None,
@@ -87,9 +100,12 @@ class Cluster(object):
             self.add_host(**host_config)
 
     def add_host(self, host_id=None, host='localhost', port=6379,
-                 unix_socket_path=None, db=0):
+                 unix_socket_path=None, db=0, password=None,
+                 ssl=False, ssl_options=None):
         """Adds a new host to the cluster.  This is only really useful for
-        unittests.
+        unittests as normally hosts are added through the constructor and
+        changes after the cluster has been used for the first time are
+        unlikely to make sense.
         """
         if host_id is None:
             raise RuntimeError('Host ID is required')
@@ -99,7 +115,9 @@ class Cluster(object):
                                 (host_id,))
             self.hosts[host_id] = HostInfo(host_id=host_id, host=host,
                                            port=port, db=db,
-                                           unix_socket_path=unix_socket_path)
+                                           unix_socket_path=unix_socket_path,
+                                           password=password, ssl=ssl,
+                                           ssl_options=ssl_options)
             self._hosts_age += 1
 
     def remove_host(self, host_id):
@@ -166,9 +184,15 @@ class Cluster(object):
             if rv is None:
                 opts = dict(self.pool_options or ())
                 opts['db'] = host_info.db
+                opts['password'] = host_info.password
                 if host_info.unix_socket_path is not None:
                     opts['path'] = host_info.unix_socket_path
                     opts['connection_class'] = UnixDomainSocketConnection
+                    if host_info.ssl:
+                        raise TypeError('SSL is not supported for unix '
+                                        'domain sockets.')
+                    opts.update(('ssl_' + k, v) for k, v in
+                                (host_info.ssl_options or {}).iteritems())
                 else:
                     opts['host'] = host_info.host
                     opts['port'] = host_info.port
