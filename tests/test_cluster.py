@@ -70,6 +70,5 @@ def test_promise_api(cluster):
         for x in xrange(10):
             client.set('key-%d' % x, x)
         for x in xrange(10):
-            promise = client.get('key-%d' % x)
-            promise.then(lambda x: results.append(int(x)))
+            client.get('key-%d' % x).then(lambda x: results.append(int(x)))
     assert sorted(results) == range(10)
