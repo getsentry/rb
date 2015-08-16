@@ -1,5 +1,5 @@
 from redis.connection import ConnectionPool, UnixDomainSocketConnection, \
-     SSLConnection
+    SSLConnection
 
 from threading import Lock
 
@@ -257,3 +257,13 @@ class Cluster(object):
                 client.flushdb()
         """
         return self.get_routing_client().fanout(*args, **kwargs)
+
+    def all(self, *args, **kwargs):
+        """Fanout to all hosts.  Works otherwise exactly like :meth:`fanout`.
+
+        Example::
+
+            with cluster.all() as client:
+                client.flushdb()
+        """
+        return self.fanout(hosts='all', *args, **kwargs)
