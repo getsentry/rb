@@ -242,3 +242,6 @@ class Cluster(object):
                 print '%s => %s' % (key, promise.value)
         """
         return self.get_routing_client().map(*args, **kwargs)
+
+    def fanout(self, *args, **kwargs):
+        return self.get_routing_client().fanout(*args, **kwargs)

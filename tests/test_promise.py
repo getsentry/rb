@@ -73,6 +73,14 @@ def test_promise_then():
 
 
 def test_promise_all():
+    p = Promise.all([])
+    assert p.is_resolved
+    assert p.value == []
+
+    p = Promise.all({})
+    assert p.is_resolved
+    assert p.value == {}
+
     p = Promise.all([
         Promise.resolved(1),
         Promise.resolved(2),
@@ -81,6 +89,15 @@ def test_promise_all():
 
     assert p.is_resolved
     assert p.value == [1, 2, 3]
+
+    p = Promise.all({
+        'key1': Promise.resolved(1),
+        'key2': Promise.resolved(2),
+        'key3': Promise.resolved(3),
+    })
+
+    assert p.is_resolved
+    assert p.value == {'key1': 1, 'key2': 2, 'key3': 3}
 
     p = Promise.all([
         Promise.resolved(1),

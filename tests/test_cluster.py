@@ -72,3 +72,15 @@ def test_promise_api(cluster):
         for x in xrange(10):
             client.get('key-%d' % x).then(lambda x: results.append(int(x)))
     assert sorted(results) == range(10)
+
+
+def test_fanout_api(cluster):
+    for host_id in cluster.hosts:
+        client = cluster.get_local_client(host_id)
+        client.set('foo', str(host_id))
+
+    with cluster.fanout(hosts='all') as client:
+        result = client.get('foo')
+
+    for host_id in cluster.hosts:
+        assert result.value[host_id] == str(host_id)

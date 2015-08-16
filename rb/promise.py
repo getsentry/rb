@@ -29,10 +29,19 @@ class Promise(object):
         return p
 
     @staticmethod
-    def all(iterable):
+    def all(iterable_or_dict):
         """A promise that resolves when all passed promises resolve."""
-        promises = list(iterable)
-        pending = set(promises)
+        if isinstance(iterable_or_dict, dict):
+            pending = set(iterable_or_dict.values())
+            promises = iterable_or_dict.items()
+            as_dict = True
+        else:
+            promises = list(enumerate(iterable_or_dict))
+            pending = set(x[1] for x in promises)
+            as_dict = False
+
+        if not promises:
+            return Promise.resolved({} if as_dict else [])
 
         rv = Promise()
 
@@ -40,10 +49,14 @@ class Promise(object):
             def handler(value):
                 pending.discard(promise)
                 if not pending:
-                    rv.resolve([x.value for x in promises])
+                    if as_dict:
+                        value = dict((k, p.value) for k, p in promises)
+                    else:
+                        value = [x.value for _, x in promises]
+                    rv.resolve(value)
             return handler
 
-        for promise in promises:
+        for _, promise in promises:
             promise.add_callback(handle_success(promise))
             promise.add_errback(rv.reject)
 

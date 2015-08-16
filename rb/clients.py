@@ -147,15 +147,15 @@ class MappingClient(RoutingBaseClient):
     # Standard redis methods
 
     def execute_command(self, *args):
-        buf = self._get_command_buffer(args[0], args[1:])
+        router = self.connection_pool.cluster.get_router()
+        host_id = router.get_host_for_command(args[0], args[1:])
+        buf = self._get_command_buffer(host_id, args[0])
         return buf.enqueue_command(args[0], args[1:])
 
     # Custom Internal API
 
-    def _get_command_buffer(self, command_name, command_args):
+    def _get_command_buffer(self, host_id, command_name):
         """Returns the command buffer for the given command and arguments."""
-        router = self.connection_pool.cluster.get_router()
-        host_id = router.get_host_for_command(command_name, command_args)
         buf = self.active_command_buffers.get(host_id)
         if buf is not None:
             return buf
@@ -226,6 +226,22 @@ class MappingClient(RoutingBaseClient):
             self._release_command_buffer(command_buffer)
 
 
+class FanoutClient(MappingClient):
+
+    def __init__(self, hosts, connection_pool, max_concurrency=None):
+        MappingClient.__init__(self, connection_pool, max_concurrency)
+        if hosts == 'all':
+            hosts = connection_pool.cluster.hosts.keys()
+        self.target_hosts = hosts
+
+    def execute_command(self, *args):
+        promises = {}
+        for host_id in self.target_hosts:
+            buf = self._get_command_buffer(host_id, args[0])
+            promises[host_id] = buf.enqueue_command(args[0], args[1:])
+        return Promise.all(promises)
+
+
 class RoutingClient(RoutingBaseClient):
     """A client that can route to individual targets."""
 
@@ -267,6 +283,10 @@ class RoutingClient(RoutingBaseClient):
         return MappingClient(connection_pool=self.connection_pool,
                              max_concurrency=max_concurrency)
 
+    def get_fanout_client(self, hosts, max_concurrency=64):
+        return FanoutClient(hosts, connection_pool=self.connection_pool,
+                            max_concurrency=max_concurrency)
+
     def map(self, timeout=None, max_concurrency=64):
         """Returns a context manager for a map operation.  This runs
         multiple queries in parallel and then joins in the end to collect
@@ -283,6 +303,10 @@ class RoutingClient(RoutingBaseClient):
                 print '%s => %s' % (key, promise.value)
         """
         return MapManager(self.get_mapping_client(max_concurrency),
+                          timeout=timeout)
+
+    def fanout(self, hosts, timeout=None, max_concurrency=64):
+        return MapManager(self.get_fanout_client(hosts, max_concurrency),
                           timeout=timeout)
 
 
