@@ -244,4 +244,13 @@ class Cluster(object):
         return self.get_routing_client().map(*args, **kwargs)
 
     def fanout(self, *args, **kwargs):
+        """Shortcut context manager for getting a routing client, beginning
+        a fanout operation and joining over the result.
+
+        In the context manager the client available is a
+        :class:`FanoutClient`.  Example usage::
+
+            with cluster.fanout(hosts='all') as client:
+                client.flushdb()
+        """
         return self.get_routing_client().fanout(*args, **kwargs)

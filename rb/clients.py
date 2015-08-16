@@ -227,11 +227,15 @@ class MappingClient(RoutingBaseClient):
 
 
 class FanoutClient(MappingClient):
+    """This works similar to the :class:`MappingClient` but instead of
+    using the router to target hosts, it sends the commands to all manually
+    specified hosts.
+
+    The results are accumulated in a dictionary keyed by the `host_id`.
+    """
 
     def __init__(self, hosts, connection_pool, max_concurrency=None):
         MappingClient.__init__(self, connection_pool, max_concurrency)
-        if hosts == 'all':
-            hosts = connection_pool.cluster.hosts.keys()
         self.target_hosts = hosts
 
     def execute_command(self, *args):
@@ -306,6 +310,22 @@ class RoutingClient(RoutingBaseClient):
                           timeout=timeout)
 
     def fanout(self, hosts, timeout=None, max_concurrency=64):
+        """Returns a context manager for a map operation that fans out to
+        manually specified hosts instead of using the routing system.  This
+        can for instance be used to empty the database on all hosts.  The
+        context manager returns a :class:`FanoutClient`.  Example usage::
+
+            with cluster.fanout(hosts='all') as client:
+                client.flushdb()
+
+        The promise returned accumulates all results in a dictionary keyed
+        by the `host_id`.
+
+        The `hosts` parameter is a list of `host_id`\s or alternatively the
+        string ``'all'`` to send the commands to all hosts.
+        """
+        if hosts == 'all':
+            hosts = self.connection_pool.cluster.hosts.keys()
         return MapManager(self.get_fanout_client(hosts, max_concurrency),
                           timeout=timeout)
 

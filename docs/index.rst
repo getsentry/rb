@@ -91,6 +91,9 @@ Clients
 .. autoclass:: MappingClient
    :members:
 
+.. autoclass:: FanoutClient
+   :members:
+
 Promise
 ```````
 
