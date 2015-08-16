@@ -40,6 +40,7 @@ class PollPoller(BasePoller):
 
     def __init__(self):
         BasePoller.__init__(self)
+        self.pollobj = select.poll()
         self.objects = {}
 
     def register(self, key, f):
