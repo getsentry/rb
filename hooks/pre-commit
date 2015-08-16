@@ -26,7 +26,7 @@ def py_lint(files_modified):
     if not files_modified:
         return False
 
-    flake8_style = get_style_guide(parse_argv=True, config_file=DEFAULT_CONFIG)
+    flake8_style = get_style_guide(config_file=DEFAULT_CONFIG)
     report = flake8_style.check_files(files_modified)
 
     return report.total_errors != 0
