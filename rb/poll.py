@@ -45,16 +45,17 @@ class PollPoller(BasePoller):
 
     def register(self, key, f):
         BasePoller.register(self, key, f)
-        self.pollobj.register(f, select.POLLIN | select.POLLHUP)
+        self.pollobj.register(f.fileno(), select.POLLIN | select.POLLHUP)
 
     def unregister(self, key):
         rv = BasePoller.unregister(self, key)
         if rv is not None:
-            self.pollobj.unregister(rv)
+            self.pollobj.unregister(rv.fileno())
         return rv
 
     def poll(self, timeout=None):
-        return [x[0] for x in self.pollobj.poll(timeout)]
+        return [self.objects[x[0]] for x in
+                self.pollobj.poll(timeout)]
 
 
 class KQueuePoller(BasePoller):
