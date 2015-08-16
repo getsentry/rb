@@ -2,6 +2,7 @@ import select
 
 
 class BasePoller(object):
+    is_availabe = False
 
     def __init__(self):
         self.objects = {}
@@ -28,12 +29,14 @@ class BasePoller(object):
 
 
 class SelectPoller(BasePoller):
+    is_availabe = hasattr(select, 'select')
 
     def poll(self, timeout=None):
         return select.select(self.objects.values(), [], [], timeout)[0]
 
 
 class PollPoller(BasePoller):
+    is_availabe = hasattr(select, 'poll')
 
     def __init__(self):
         BasePoller.__init__(self)
@@ -54,6 +57,7 @@ class PollPoller(BasePoller):
 
 
 class KQueuePoller(BasePoller):
+    is_availabe = hasattr(select, 'kqueue')
 
     def __init__(self):
         BasePoller.__init__(self)
@@ -81,9 +85,6 @@ class KQueuePoller(BasePoller):
         return [self.event_to_object[ev.ident] for ev in events]
 
 
-if hasattr(select, 'kqueue'):
-    poll = KQueuePoller
-elif hasattr(select, 'poll'):
-    poll = PollPoller
-else:
-    poll = SelectPoller
+available_pollers = [poll for poll in [KQueuePoller, PollPoller, SelectPoller]
+                     if poll.is_availabe]
+poll = available_pollers[0]
