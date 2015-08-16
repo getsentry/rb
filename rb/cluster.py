@@ -109,6 +109,9 @@ class Cluster(object):
         """
         if host_id is None:
             raise RuntimeError('Host ID is required')
+        elif not isinstance(host_id, (int, long)):
+            raise ValueError('The host ID has to be an integer')
+        host_id = int(host_id)
         with self._lock:
             if host_id in self.hosts:
                 raise TypeError('Two hosts share the same host id (%r)' %

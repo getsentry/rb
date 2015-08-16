@@ -1,65 +1,84 @@
 import select
 
 
-class SelectPoller(object):
+class BasePoller(object):
 
     def __init__(self):
-        self.objects = []
+        self.objects = {}
 
-    def register(self, f):
-        self.objects.append(f)
+    def register(self, key, f):
+        self.objects[key] = f
 
-    def unregister(self, f):
-        try:
-            self.objects.remove(f)
-        except ValueError:
-            return False
-        return True
+    def unregister(self, key):
+        return self.objects.pop(key, None)
 
     def poll(self, timeout=None):
-        return select.select(self.objects, [], [], timeout)[0]
+        raise NotImplementedError()
+
+    def get(self, key):
+        return self.objects.get(key)
+
+    def __len__(self):
+        return len(self.objects)
+
+    def __iter__(self):
+        # Make a copy when iterating so that modifications to this object
+        # are possible while we're going over it.
+        return iter(self.objects.values())
 
 
-class PollPoller(object):
+class SelectPoller(BasePoller):
+
+    def poll(self, timeout=None):
+        return select.select(self.objects.values(), [], [], timeout)[0]
+
+
+class PollPoller(BasePoller):
 
     def __init__(self):
-        self.pollobj = select.poll()
+        BasePoller.__init__(self)
+        self.objects = {}
 
-    def register(self, f):
+    def register(self, key, f):
+        BasePoller.register(self, key, f)
         self.pollobj.register(f, select.POLLIN | select.POLLHUP)
 
-    def unregister(self, f):
-        try:
-            self.pollobj.unregister(f)
-        except LookupError:
-            return False
-        return True
+    def unregister(self, key):
+        rv = BasePoller.unregister(self, key)
+        if rv is not None:
+            self.pollobj.unregister(rv)
+        return rv
 
     def poll(self, timeout=None):
         return [x[0] for x in self.pollobj.poll(timeout)]
 
 
-class KQueuePoller(object):
+class KQueuePoller(BasePoller):
 
     def __init__(self):
+        BasePoller.__init__(self)
         self.kqueue = select.kqueue()
         self.events = {}
-        self.objects = {}
+        self.event_to_object = {}
 
-    def register(self, f):
-        kevent = select.kevent(f.fileno(),
-                               filter=select.KQ_FILTER_READ,
-                               flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE)
-        self.events[f.fileno()] = kevent
-        self.objects[f.fileno()] = f
+    def register(self, key, f):
+        BasePoller.register(self, key, f)
+        event = select.kevent(
+            f.fileno(), filter=select.KQ_FILTER_READ,
+            flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE)
+        self.events[f.fileno()] = event
+        self.event_to_object[f.fileno()] = f
 
-    def unregister(self, f):
-        self.objects.pop(f.fileno(), None)
-        return self.events.pop(f.fileno(), None) is not None
+    def unregister(self, key):
+        rv = BasePoller.unregister(self, key)
+        if rv is not None:
+            self.events.pop(rv.fileno(), None)
+            self.event_to_object.pop(rv.fileno(), None)
+        return rv
 
     def poll(self, timeout=None):
         events = self.kqueue.control(self.events.values(), 128, timeout)
-        return [self.objects[ev.ident] for ev in events]
+        return [self.event_to_object[ev.ident] for ev in events]
 
 
 if hasattr(select, 'kqueue'):
