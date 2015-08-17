@@ -331,8 +331,10 @@ class RoutingClient(RoutingBaseClient):
         can for instance be used to empty the database on all hosts.  The
         context manager returns a :class:`FanoutClient`.  Example usage::
 
-            with cluster.fanout(hosts='all') as client:
-                client.flushdb()
+            with cluster.fanout(hosts=[0, 1, 2, 3]) as client:
+                results = client.info()
+            for host_id, info in results.value.iteritems():
+                print '%s -> %s' % (host_id, info['is'])
 
         The promise returned accumulates all results in a dictionary keyed
         by the `host_id`.
