@@ -57,6 +57,11 @@ class BaseRouter(object):
         keys = extract_keys(args, spec['key_spec'])
         if len(keys) == 1:
             return keys[0]
+        elif not keys:
+            raise UnroutableCommand(
+                'The command "%r" does not operate on a key which means '
+                'that no suitable host could be determined.  Consider '
+                'using a fanout instead.')
 
         raise UnroutableCommand(
             'The command "%r" operates on multiple keys (%d passed) which is '
