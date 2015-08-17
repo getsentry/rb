@@ -230,7 +230,7 @@ class Cluster(object):
         """
         return RoutingClient(self)
 
-    def map(self, *args, **kwargs):
+    def map(self, timeout=None, max_concurrency=64):
         """Shortcut context manager for getting a routing client, beginning
         a map operation and joining over the result.
 
@@ -244,9 +244,10 @@ class Cluster(object):
             for key, promise in results.iteritems():
                 print '%s => %s' % (key, promise.value)
         """
-        return self.get_routing_client().map(*args, **kwargs)
+        return self.get_routing_client().map(
+            timeout=timeout, max_concurrency=max_concurrency)
 
-    def fanout(self, *args, **kwargs):
+    def fanout(self, hosts=None, timeout=None, max_concurrency=64):
         """Shortcut context manager for getting a routing client, beginning
         a fanout operation and joining over the result.
 
@@ -256,9 +257,10 @@ class Cluster(object):
             with cluster.fanout(hosts='all') as client:
                 client.flushdb()
         """
-        return self.get_routing_client().fanout(*args, **kwargs)
+        return self.get_routing_client().fanout(
+            hosts=hosts, timeout=timeout, max_concurrency=max_concurrency)
 
-    def all(self, *args, **kwargs):
+    def all(self, timeout=None, max_concurrency=64):
         """Fanout to all hosts.  Works otherwise exactly like :meth:`fanout`.
 
         Example::
@@ -266,4 +268,5 @@ class Cluster(object):
             with cluster.all() as client:
                 client.flushdb()
         """
-        return self.fanout(hosts='all', *args, **kwargs)
+        return self.fanout('all', timeout=timeout,
+                           max_concurrency=max_concurrency)
