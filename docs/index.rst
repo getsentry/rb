@@ -69,6 +69,14 @@ Instead of storing the actual values in the result dictionary,
 ends they are guaranteed however to have been executed and you can access
 the :attr:`Promise.value` attribute to get the value.
 
+If you want to send a command to all participating hosts (for instance to
+delete the database) you can use the :meth:`Cluster.all` method::
+
+    with cluster.all() as client:
+        client.flushdb()
+
+To explicitly target some hosts you can use :meth:`Cluster.fanout`.
+
 API
 ---
 
