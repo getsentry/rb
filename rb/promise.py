@@ -4,7 +4,8 @@ from functools import partial
 class Promise(object):
     """A promise object that attempts to mirror the ES6 APIs for promise
     objects.  Unlike ES6 promises this one however also directly gives
-    access to the underlying value.
+    access to the underlying value and it has some slightly different
+    static method names as this promise can be resolved externally.
     """
     __slots__ = ('value', 'reason', '_state', '_callbacks', '_errbacks')
 
@@ -35,7 +36,9 @@ class Promise(object):
 
     @staticmethod
     def all(iterable_or_dict):
-        """A promise that resolves when all passed promises resolve."""
+        """A promise that resolves when all passed promises resolve.  You can
+        either pass a list or a dictionary of promises.
+        """
         if isinstance(iterable_or_dict, dict):
             return _promise_from_dict(iterable_or_dict)
         return _promise_from_iterable(iterable_or_dict)
@@ -87,7 +90,7 @@ class Promise(object):
         return self._state == 'rejected'
 
     def done(self, on_success=None, on_failure=None):
-        """Attaches some callbacks to the promise."""
+        """Attaches some callbacks to the promise and returns the promise."""
         if on_success is not None:
             if self._state == 'pending':
                 self._callbacks.append(on_success)
