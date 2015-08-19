@@ -1,5 +1,8 @@
-from redis.connection import ConnectionPool, UnixDomainSocketConnection, \
-    SSLConnection
+from redis.connection import ConnectionPool, UnixDomainSocketConnection
+try:
+    from redis.connection import SSLConnection
+except ImportError:
+    SSLConnection is None
 
 from threading import Lock
 
@@ -198,6 +201,9 @@ class Cluster(object):
                     opts['host'] = host_info.host
                     opts['port'] = host_info.port
                     if host_info.ssl:
+                        if SSLConnection is None:
+                            raise TypeError('This version of py-redis does '
+                                            'not support SSL connections.')
                         opts['connection_class'] = SSLConnection
                         opts.update(('ssl_' + k, v) for k, v in
                                     (host_info.ssl_options or {}).iteritems())
