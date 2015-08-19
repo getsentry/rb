@@ -9,7 +9,8 @@
 """
 from rb.cluster import Cluster
 from rb.clients import RoutingClient, MappingClient, FanoutClient
-from rb.router import BaseRouter, ConsistentHashingRouter, PartitionRouter
+from rb.router import BaseRouter, ConsistentHashingRouter, PartitionRouter, \
+    UnroutableCommand
 from rb.promise import Promise
 
 
@@ -24,6 +25,7 @@ __all__ = [
 
     # router
     'BaseRouter', 'ConsistentHashingRouter', 'PartitionRouter',
+    'UnroutableCommand',
 
     # promise
     'Promise',

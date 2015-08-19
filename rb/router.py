@@ -6,7 +6,9 @@ from rb._rediscommands import COMMANDS
 
 
 class UnroutableCommand(Exception):
-    pass
+    """Raised if a command was issued that cannot be routed through the
+    router to a single host.
+    """
 
 
 def extract_keys(args, key_spec):

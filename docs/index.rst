@@ -154,6 +154,8 @@ Routers
 .. autoclass:: PartitionRouter
    :members:
 
+.. autoexception:: UnroutableCommand
+
 Testing
 ```````
 
