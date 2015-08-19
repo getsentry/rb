@@ -72,6 +72,10 @@ automatically routes to the right redis nodes for each command::
     for key in keys_to_look_up:
         results[key] = client.get(key)
 
+The client works pretty much exactly like a standard pyredis
+`StrictClient` with the main difference that it can only execute commands
+that involve exactly one key.
+
 This basic operation however runs in series.  What makes rb useful is that
 it can automatically build redis pipelines and send out queries to many
 hosts in parallel.  This however changes the usage slightly as now the
