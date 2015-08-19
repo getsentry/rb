@@ -7,6 +7,8 @@ rb - the redis blaster.
 The fastest way to talk to many redis nodes.  Can do routing as well as
 blindly blasting commands to many nodes.  How does it work?
 
+For full documentation see [rb.rtfd.org](http://rb.rtfd.org/)
+
 ## Quickstart
 
 Set up a cluster:
