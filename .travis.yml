@@ -31,7 +31,9 @@ matrix:
 
 install:
   - bash .travis-${TRAVIS_OS_NAME}.sh
+  - pip install --upgrade pip
   - pip install pytest
   - pip install --editable .
 
-script: make test
+script:
+  - make test
