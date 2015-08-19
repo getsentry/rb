@@ -6,3 +6,7 @@ brew outdated pyenv || brew upgrade --quiet pyenv
 pyenv install -ks $PYTHON_VERSION
 pyenv global $PYTHON_VERSION
 python --version
+
+which pip
+which python
+which py.test
