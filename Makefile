@@ -4,4 +4,4 @@ setup-git:
 	cd .git/hooks && ln -sf ../../hooks/* ./
 
 test:
-	PYTHONPATH=. py.test -vv --tb=short
+	py.test -vv --tb=short
