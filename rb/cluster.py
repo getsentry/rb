@@ -2,7 +2,7 @@ from redis.connection import ConnectionPool, UnixDomainSocketConnection
 try:
     from redis.connection import SSLConnection
 except ImportError:
-    SSLConnection is None
+    SSLConnection = None
 
 from threading import Lock
 
