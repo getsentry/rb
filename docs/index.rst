@@ -50,7 +50,7 @@ multiple::
     })
 
 In this case we set up 8 nodes on four different server processes on the
-same host.  The `hosts` parameter is a mapping of hosts to conenct to.
+same host.  The `hosts` parameter is a mapping of hosts to connect to.
 The key of the dictionary is the host ID (an integer) and the value is
 a dictionary of parameters.  The `host_defaults` is a dictionary of
 optional defaults that is filled in for all hosts.  This is useful if you
