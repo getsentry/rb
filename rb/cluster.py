@@ -32,7 +32,7 @@ class HostInfo(object):
         rv = self.__eq__(other)
         if rv is NotImplemented:
             return NotImplemented
-        return rv
+        return not rv
 
     def __hash__(self):
         return self.host_id
