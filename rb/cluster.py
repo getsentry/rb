@@ -225,20 +225,29 @@ class Cluster(object):
         """
         return self.get_local_client(self.get_router().get_host_for_key(key))
 
-    def get_routing_client(self):
+    def get_routing_client(self, auto_batch=True):
         """Returns a routing client.  This client is able to automatically
         route the requests to the individual hosts.  It's thread safe and
         can be used similar to the host local client but it will refused
         to execute commands that cannot be directly routed to an
         individual node.
 
+        The default behavior for the routing client is to attempt to batch
+        eligible commands into batch versions thereof.  For instance multiple
+        `GET` commands routed to the same node can end up merged into an
+        `MGET` command.  This behavior can be disabled by setting `auto_batch`
+        to `False`.  This can be useful for debugging because `MONITOR` will
+        more accurately reflect the commands issued in code.
+
         See :class:`RoutingClient` for more information.
         """
-        return RoutingClient(self)
+        return RoutingClient(self, auto_batch=auto_batch)
 
-    def map(self, timeout=None, max_concurrency=64):
+    def map(self, timeout=None, max_concurrency=64, auto_batch=True):
         """Shortcut context manager for getting a routing client, beginning
-        a map operation and joining over the result.
+        a map operation and joining over the result.  `max_concurrency`
+        defines how many outstanding parallel queries can exist before an
+        implicit join takes place.
 
         In the context manager the client available is a
         :class:`MappingClient`.  Example usage::
@@ -250,10 +259,11 @@ class Cluster(object):
             for key, promise in results.iteritems():
                 print '%s => %s' % (key, promise.value)
         """
-        return self.get_routing_client().map(
+        return self.get_routing_client(auto_batch).map(
             timeout=timeout, max_concurrency=max_concurrency)
 
-    def fanout(self, hosts=None, timeout=None, max_concurrency=64):
+    def fanout(self, hosts=None, timeout=None, max_concurrency=64,
+               auto_batch=True):
         """Shortcut context manager for getting a routing client, beginning
         a fanout operation and joining over the result.
 
@@ -263,10 +273,10 @@ class Cluster(object):
             with cluster.fanout(hosts='all') as client:
                 client.flushdb()
         """
-        return self.get_routing_client().fanout(
+        return self.get_routing_client(auto_batch).fanout(
             hosts=hosts, timeout=timeout, max_concurrency=max_concurrency)
 
-    def all(self, timeout=None, max_concurrency=64):
+    def all(self, timeout=None, max_concurrency=64, auto_batch=True):
         """Fanout to all hosts.  Works otherwise exactly like :meth:`fanout`.
 
         Example::
@@ -275,4 +285,5 @@ class Cluster(object):
                 client.flushdb()
         """
         return self.fanout('all', timeout=timeout,
-                           max_concurrency=max_concurrency)
+                           max_concurrency=max_concurrency,
+                           auto_batch=auto_batch)

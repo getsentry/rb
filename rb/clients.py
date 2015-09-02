@@ -1,6 +1,7 @@
 import time
 
 from weakref import ref as weakref
+from itertools import izip
 
 from redis import StrictRedis
 from redis.exceptions import ConnectionError, TimeoutError
@@ -9,20 +10,77 @@ from rb.promise import Promise
 from rb.poll import poll
 
 
+AUTO_BATCH_COMMANDS = {
+    'GET': ('MGET', True),
+    'SET': ('MSET', False),
+}
+
+
 def assert_open(client):
     if client.closed:
         raise ValueError('I/O operation on closed file')
 
 
+def merge_batch(command_name, arg_promise_tuples):
+    batch_command, list_response = AUTO_BATCH_COMMANDS[command_name]
+
+    if len(arg_promise_tuples) == 1:
+        args, promise = arg_promise_tuples[0]
+        return command_name, args, promise
+
+    promise = Promise()
+
+    @promise.done
+    def on_success(value):
+        if list_response:
+            for item, (_, promise) in izip(value, arg_promise_tuples):
+                promise.resolve(item)
+        else:
+            for _, promise in arg_promise_tuples:
+                promise.resolve(value)
+
+    args = []
+    for individual_args, _ in arg_promise_tuples:
+        args.extend(individual_args)
+
+    return batch_command, args, promise
+
+
+def auto_batch_commands(commands):
+    """Given a pipeline of commands this attempts to merge the commands
+    into more efficient ones if that is possible.
+    """
+    pending_batch = None
+
+    for command_name, args, promise in commands:
+        # This command cannot be batched, return it as such.
+        if command_name not in AUTO_BATCH_COMMANDS:
+            if pending_batch:
+                yield merge_batch(*pending_batch)
+                None
+            yield command_name, args, promise
+            continue
+
+        if pending_batch and pending_batch[0] == command_name:
+            pending_batch[1].append((args, promise))
+        else:
+            if pending_batch:
+                yield merge_batch(*pending_batch)
+            pending_batch = (command_name, [(args, promise)])
+
+    if pending_batch:
+        yield merge_batch(*pending_batch)
+
+
 class CommandBuffer(object):
     """The command buffer is an internal construct """
 
-    def __init__(self, host_id, connection):
+    def __init__(self, host_id, connection, auto_batch=True):
         self.host_id = host_id
         self.connection = connection
         self.commands = []
-        self.last_command_sent = 0
-        self.last_command_received = 0
+        self.pending_responses = []
+        self.auto_batch = auto_batch
 
         # Ensure we're connected.  Without this, we won't have a socket
         # we can select over.
@@ -50,31 +108,35 @@ class CommandBuffer(object):
     def send_pending_requests(self):
         """Sends all pending requests into the connection."""
         assert_open(self)
-        unsent_commands = self.commands[self.last_command_sent:]
+
+        unsent_commands = self.commands
         if not unsent_commands:
             return
+        self.commands = []
 
-        all_cmds = self.connection.pack_commands(
-            [(x[0],) + tuple(x[1]) for x in unsent_commands])
-        self.connection.send_packed_command(all_cmds)
-        self.last_command_sent += len(unsent_commands)
+        if self.auto_batch:
+            unsent_commands = auto_batch_commands(unsent_commands)
+
+        buf = []
+        for command_name, args, promise in unsent_commands:
+            buf.append((command_name,) + tuple(args))
+            self.pending_responses.append((command_name, promise))
+
+        cmds = self.connection.pack_commands(buf)
+        self.connection.send_packed_command(cmds)
 
     def wait_for_responses(self, client):
         """Waits for all responses to come back and resolves the
         eventual results.
         """
         assert_open(self)
-        pending = self.last_command_sent - self.last_command_received
-        if pending <= 0:
-            return
 
-        for idx in xrange(pending):
-            real_idx = self.last_command_received + idx
-            command_name, _, promise = self.commands[real_idx]
+        pending = self.pending_responses
+        self.pending_responses = []
+        for command_name, promise in pending:
             value = client.parse_response(
                 self.connection, command_name)
             promise.resolve(value)
-        self.last_command_received += idx
 
 
 class RoutingPool(object):
@@ -123,6 +185,10 @@ class BaseClient(StrictRedis):
 
 class RoutingBaseClient(BaseClient):
 
+    def __init__(self, connection_pool, auto_batch=True):
+        BaseClient.__init__(self, connection_pool=connection_pool)
+        self.auto_batch = auto_batch
+
     def pubsub(self, **kwargs):
         raise NotImplementedError('Pubsub is unsupported.')
 
@@ -137,10 +203,14 @@ class RoutingBaseClient(BaseClient):
 class MappingClient(RoutingBaseClient):
     """The routing client uses the cluster's router to target an individual
     node automatically based on the key of the redis command executed.
+
+    For the parameters see :meth:`Cluster.map`.
     """
 
-    def __init__(self, connection_pool, max_concurrency=None):
-        RoutingBaseClient.__init__(self, connection_pool=connection_pool)
+    def __init__(self, connection_pool, max_concurrency=None,
+                 auto_batch=True):
+        RoutingBaseClient.__init__(self, connection_pool=connection_pool,
+                                   auto_batch=auto_batch)
         # careful.  If you introduce any other variables here, then make
         # sure that FanoutClient.target still works correctly!
         self._max_concurrency = max_concurrency
@@ -167,7 +237,7 @@ class MappingClient(RoutingBaseClient):
 
         connection = self.connection_pool.get_connection(
             command_name, shard_hint=host_id)
-        buf = CommandBuffer(host_id, connection)
+        buf = CommandBuffer(host_id, connection, self.auto_batch)
         self._command_buffer_poll.register(host_id, buf)
         return buf
 
@@ -227,10 +297,14 @@ class FanoutClient(MappingClient):
     specified hosts.
 
     The results are accumulated in a dictionary keyed by the `host_id`.
+
+    For the parameters see :meth:`Cluster.fanout`.
     """
 
-    def __init__(self, hosts, connection_pool, max_concurrency=None):
-        MappingClient.__init__(self, connection_pool, max_concurrency)
+    def __init__(self, hosts, connection_pool, max_concurrency=None,
+                 auto_batch=True):
+        MappingClient.__init__(self, connection_pool, max_concurrency,
+                               auto_batch=auto_batch)
         self._target_hosts = hosts
         self.__is_retargeted = False
 
@@ -263,10 +337,14 @@ class FanoutClient(MappingClient):
 
 
 class RoutingClient(RoutingBaseClient):
-    """A client that can route to individual targets."""
+    """A client that can route to individual targets.
 
-    def __init__(self, cluster):
-        RoutingBaseClient.__init__(self, connection_pool=RoutingPool(cluster))
+    For the parameters see :meth:`Cluster.get_routing_client`.
+    """
+
+    def __init__(self, cluster, auto_batch=True):
+        RoutingBaseClient.__init__(self, connection_pool=RoutingPool(cluster),
+                                   auto_batch=auto_batch)
 
     # Standard redis methods
 
@@ -291,7 +369,7 @@ class RoutingClient(RoutingBaseClient):
 
     # Custom Public API
 
-    def get_mapping_client(self, max_concurrency=64):
+    def get_mapping_client(self, max_concurrency=64, auto_batch=None):
         """Returns a thread unsafe mapping client.  This client works
         similar to a redis pipeline and returns eventual result objects.
         It needs to be joined on to work properly.  Instead of using this
@@ -300,14 +378,25 @@ class RoutingClient(RoutingBaseClient):
 
         Returns an instance of :class:`MappingClient`.
         """
+        if auto_batch is None:
+            auto_batch = self.auto_batch
         return MappingClient(connection_pool=self.connection_pool,
-                             max_concurrency=max_concurrency)
+                             max_concurrency=max_concurrency,
+                             auto_batch=auto_batch)
 
-    def get_fanout_client(self, hosts, max_concurrency=64):
+    def get_fanout_client(self, hosts, max_concurrency=64,
+                          auto_batch=None):
+        """Returns a thread unsafe fanout client.
+
+        Returns an instance of :class:`FanoutClient`.
+        """
+        if auto_batch is None:
+            auto_batch = self.auto_batch
         return FanoutClient(hosts, connection_pool=self.connection_pool,
-                            max_concurrency=max_concurrency)
+                            max_concurrency=max_concurrency,
+                            auto_batch=auto_batch)
 
-    def map(self, timeout=None, max_concurrency=64):
+    def map(self, timeout=None, max_concurrency=64, auto_batch=None):
         """Returns a context manager for a map operation.  This runs
         multiple queries in parallel and then joins in the end to collect
         all results.
@@ -322,10 +411,11 @@ class RoutingClient(RoutingBaseClient):
             for key, promise in results.iteritems():
                 print '%s => %s' % (key, promise.value)
         """
-        return MapManager(self.get_mapping_client(max_concurrency),
+        return MapManager(self.get_mapping_client(max_concurrency, auto_batch),
                           timeout=timeout)
 
-    def fanout(self, hosts=None, timeout=None, max_concurrency=64):
+    def fanout(self, hosts=None, timeout=None, max_concurrency=64,
+               auto_batch=None):
         """Returns a context manager for a map operation that fans out to
         manually specified hosts instead of using the routing system.  This
         can for instance be used to empty the database on all hosts.  The
@@ -346,7 +436,8 @@ class RoutingClient(RoutingBaseClient):
         a lot of damage when keys are written to hosts that do not expect
         them.
         """
-        return MapManager(self.get_fanout_client(hosts, max_concurrency),
+        return MapManager(self.get_fanout_client(hosts, max_concurrency,
+                                                 auto_batch),
                           timeout=timeout)
 
 
