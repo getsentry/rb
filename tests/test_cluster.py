@@ -56,6 +56,20 @@ def test_basic_cluster(cluster):
     assert ref_sum == sum(xrange(iterations))
 
 
+def test_basic_cluster_disabled_batch(cluster):
+    iterations = 10000
+
+    with cluster.map(auto_batch=False) as client:
+        for x in xrange(iterations):
+            client.set('key-%06d' % x, x)
+    responses = []
+    with cluster.map(auto_batch=False) as client:
+        for x in xrange(iterations):
+            responses.append(client.get('key-%06d' % x))
+    ref_sum = sum(int(x.value) for x in responses)
+    assert ref_sum == sum(xrange(iterations))
+
+
 def test_simple_api(cluster):
     client = cluster.get_routing_client()
     with client.map() as map_client:
@@ -118,3 +132,12 @@ def test_fanout_targeting_api(cluster):
     # Without hosts this should fail
     with cluster.fanout() as client:
         pytest.raises(RuntimeError, client.get, 'bar')
+
+
+def test_emulated_batch_apis(cluster):
+    with cluster.map() as map_client:
+        promise = map_client.mset(dict(('key:%s' % x, x) for x in range(10)))
+    assert promise.value is None
+    with cluster.map() as map_client:
+        promise = map_client.mget(['key:%s' % x for x in range(10)])
+    assert promise.value == [str(x) for x in range(10)]

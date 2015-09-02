@@ -4,6 +4,7 @@ from weakref import ref as weakref
 from itertools import izip
 
 from redis import StrictRedis
+from redis.client import list_or_args
 from redis.exceptions import ConnectionError, TimeoutError
 
 from rb.promise import Promise
@@ -215,6 +216,17 @@ class MappingClient(RoutingBaseClient):
         # sure that FanoutClient.target still works correctly!
         self._max_concurrency = max_concurrency
         self._command_buffer_poll = poll()
+
+    # For the mapping client we can fix up some redis standard commands
+    # as we are promise based and have some flexibility here.
+
+    def mget(self, keys, *args):
+        args = list_or_args(keys, args)
+        return Promise.all([self.get(arg) for arg in args])
+
+    def mset(self, *args, **kwargs):
+        return Promise.all([self.set(k, v) for k, v in dict(*args, **kwargs)
+                            .iteritems()]).then(lambda x: None)
 
     # Standard redis methods
 
