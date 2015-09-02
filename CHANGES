@@ -7,3 +7,5 @@ Version 1.0
 (release date and codename to be decided)
 
 - Added support for automatic batching of GET and SET to MGET and MSET.
+- Added emulated `mget` and `mset` commands to promise based clients.
+- Fixed a bug with the HostInfo not comparing correctly.
