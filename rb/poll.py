@@ -90,6 +90,33 @@ class KQueuePoller(BasePoller):
         return [self.event_to_object[ev.ident] for ev in events]
 
 
-available_pollers = [poll for poll in [KQueuePoller, PollPoller, SelectPoller]
+class EpollPoller(BasePoller):
+    is_availabe = hasattr(select, 'epoll')
+
+    def __init__(self):
+        BasePoller.__init__(self)
+        self.epoll = select.epoll()
+        self.fd_to_object = {}
+
+    def register(self, key, f):
+        BasePoller.register(self, key, f)
+        self.epoll.register(f.fileno(), select.EPOLLIN | select.EPOLLHUP)
+        self.fd_to_object[f.fileno()] = f
+
+    def unregister(self, key):
+        rv = BasePoller.unregister(self, key)
+        if rv is not None:
+            self.epoll.unregister(rv.fileno())
+            self.fd_to_object.pop(rv.fileno(), None)
+        return rv
+
+    def poll(self, timeout=None):
+        if timeout is None:
+            timeout = -1
+        return [self.fd_to_object[x] for x, _ in
+                self.epoll.poll(timeout)]
+
+
+available_pollers = [poll for poll in [EpollPoller, KQueuePoller, PollPoller, SelectPoller]
                      if poll.is_availabe]
 poll = available_pollers[0]
