@@ -117,6 +117,7 @@ class EpollPoller(BasePoller):
                 self.epoll.poll(timeout)]
 
 
-available_pollers = [poll for poll in [EpollPoller, KQueuePoller, PollPoller, SelectPoller]
+available_pollers = [poll for poll in [KQueuePoller, PollPoller,
+                                       EpollPoller, SelectPoller]
                      if poll.is_availabe]
 poll = available_pollers[0]
