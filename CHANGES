@@ -4,7 +4,7 @@ Rb Changelog
 Version 1.0
 -----------
 
-(release date and codename to be decided)
+(released on Sep 4th 2015)
 
 - Added support for automatic batching of GET and SET to MGET and MSET.
 - Added emulated `mget` and `mset` commands to promise based clients.
