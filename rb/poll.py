@@ -51,7 +51,8 @@ class PollPoller(BasePoller):
 
     def register(self, key, f):
         BasePoller.register(self, key, f)
-        self.pollobj.register(f.fileno(), select.POLLIN | select.POLLHUP)
+        self.pollobj.register(f.fileno(), select.POLLIN | select.POLLOUT |
+                              select.POLLHUP)
         self.fd_to_object[f.fileno()] = f
 
     def unregister(self, key):
@@ -65,10 +66,10 @@ class PollPoller(BasePoller):
         rv = []
         for fd, event in self.pollobj.poll(timeout):
             obj = self.fd_to_object[fd]
-            if event & select.EPOLLIN or \
-               event & select.EPOLLOUT:
+            if event & select.POLLIN or \
+               event & select.POLLHUP:
                 rv.append((obj, 'read'))
-            if event & select.EPOLLOUT:
+            if event & select.POLLOUT:
                 rv.append((obj, 'write'))
         return rv
 
@@ -147,7 +148,7 @@ class EpollPoller(BasePoller):
         for fd, event in self.epoll.poll(timeout):
             obj = self.fd_to_object[fd]
             if event & select.EPOLLIN or \
-               event & select.EPOLLOUT:
+               event & select.EPOLLHUP:
                 rv.append((obj, 'read'))
             if event & select.EPOLLOUT:
                 rv.append((obj, 'write'))
