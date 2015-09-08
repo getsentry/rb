@@ -25,6 +25,9 @@ def assert_open(client):
 
 
 def send_buffer(buf, sock, block=False):
+    """Utility function that sends the buffer into the provided socket.
+    The buffer itself will slowly clear out and is modified in place.
+    """
     try:
         if not block:
             timeout = sock.gettimeout()
@@ -43,8 +46,7 @@ def send_buffer(buf, sock, block=False):
                         raise
                     break
                 if sent < len(item):
-                    del buf[:idx + 1]
-                    buf.insert(0, item[sent:])
+                    buf[:idx + 1] = [item[sent:]]
                     break
             else:
                 del buf[:]
