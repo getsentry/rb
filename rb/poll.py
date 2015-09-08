@@ -42,8 +42,7 @@ class SelectPoller(BasePoller):
 
 
 class PollPoller(BasePoller):
-    # XXX: fix me
-    is_availabe = hasattr(select, 'poll') and False
+    is_availabe = hasattr(select, 'poll')
 
     def __init__(self):
         BasePoller.__init__(self)
@@ -121,7 +120,7 @@ class KQueuePoller(BasePoller):
 
 
 class EpollPoller(BasePoller):
-    is_availabe = hasattr(select, 'epoll') and False
+    is_availabe = hasattr(select, 'epoll')
 
     def __init__(self):
         BasePoller.__init__(self)
