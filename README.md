@@ -40,6 +40,13 @@ print 'Sum: %s' % sum(results)
 Fanout:
 
 ```python
+with cluster.fanout(hosts=[0, 1, 2, 3]) as client:
+    infos = client.info()
+```
+
+Fanout to all:
+
+```python
 with cluster.fanout(hosts='all') as client:
     client.flushdb()
 ```
