@@ -47,7 +47,6 @@ class PollPoller(BasePoller):
     def __init__(self):
         BasePoller.__init__(self)
         self.pollobj = select.poll()
-        self.objects = {}
         self.fd_to_object = {}
 
     def register(self, key, f):
