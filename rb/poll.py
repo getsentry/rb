@@ -1,6 +1,10 @@
 import select
 
 
+EV_READ = 1
+EV_WRITE = 2
+
+
 class BasePoller(object):
     is_availabe = False
 
@@ -32,11 +36,14 @@ class SelectPoller(BasePoller):
     is_availabe = hasattr(select, 'select')
 
     def poll(self, timeout=None):
-        return select.select(self.objects.values(), [], [], timeout)[0]
+        objs = self.objects.values()
+        rlist, wlist, _ = select.select(objs, objs, [], timeout)
+        return [(x, 'read') for x in rlist] + [(x, 'write') for x in wlist]
 
 
 class PollPoller(BasePoller):
-    is_availabe = hasattr(select, 'poll')
+    # XXX: fix me
+    is_availabe = hasattr(select, 'poll') and False
 
     def __init__(self):
         BasePoller.__init__(self)
@@ -57,8 +64,14 @@ class PollPoller(BasePoller):
         return rv
 
     def poll(self, timeout=None):
-        return [self.fd_to_object[x[0]] for x in
-                self.pollobj.poll(timeout)]
+        rv = []
+        for fd, event in self.pollobj.poll(timeout):
+            if event & select.EPOLLIN or \
+               event & select.EPOLLOUT:
+                rv.append((fd, 'read'))
+            if event & select.EPOLLOUT:
+                rv.append((fd, 'write'))
+        return rv
 
 
 class KQueuePoller(BasePoller):
@@ -67,31 +80,48 @@ class KQueuePoller(BasePoller):
     def __init__(self):
         BasePoller.__init__(self)
         self.kqueue = select.kqueue()
-        self.events = {}
+        self.events = []
         self.event_to_object = {}
 
     def register(self, key, f):
         BasePoller.register(self, key, f)
-        event = select.kevent(
+        r_event = select.kevent(
             f.fileno(), filter=select.KQ_FILTER_READ,
             flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE)
-        self.events[f.fileno()] = event
+        self.events.append(r_event)
+        w_event = select.kevent(
+            f.fileno(), filter=select.KQ_FILTER_WRITE,
+            flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE)
+        self.events.append(w_event)
         self.event_to_object[f.fileno()] = f
 
     def unregister(self, key):
         rv = BasePoller.unregister(self, key)
         if rv is not None:
-            self.events.pop(rv.fileno(), None)
-            self.event_to_object.pop(rv.fileno(), None)
+            fd = rv.fileno()
+            self.events = [x for x in self.events if x.ident != fd]
+            self.event_to_object.pop(fd, None)
         return rv
 
     def poll(self, timeout=None):
-        events = self.kqueue.control(self.events.values(), 128, timeout)
-        return [self.event_to_object[ev.ident] for ev in events]
+        events = self.kqueue.control(self.events, 128, timeout)
+        rv = []
+        for ev in events:
+            obj = self.event_to_object.get(ev.ident)
+            if obj is None:
+                # It happens surprisingly frequently that kqueue returns
+                # write events things no longer in the kqueue.  Not sure
+                # why
+                continue
+            if ev.filter == select.KQ_FILTER_READ:
+                rv.append((obj, 'read'))
+            elif ev.filter == select.KQ_FILTER_WRITE:
+                rv.append((obj, 'write'))
+        return rv
 
 
 class EpollPoller(BasePoller):
-    is_availabe = hasattr(select, 'epoll')
+    is_availabe = hasattr(select, 'epoll') and False
 
     def __init__(self):
         BasePoller.__init__(self)
@@ -100,7 +130,8 @@ class EpollPoller(BasePoller):
 
     def register(self, key, f):
         BasePoller.register(self, key, f)
-        self.epoll.register(f.fileno(), select.EPOLLIN | select.EPOLLHUP)
+        self.epoll.register(f.fileno(), select.EPOLLIN | select.EPOLLHUP |
+                            select.EPOLLOUT)
         self.fd_to_object[f.fileno()] = f
 
     def unregister(self, key):
@@ -113,8 +144,14 @@ class EpollPoller(BasePoller):
     def poll(self, timeout=None):
         if timeout is None:
             timeout = -1
-        return [self.fd_to_object[x] for x, _ in
-                self.epoll.poll(timeout)]
+        rv = []
+        for fd, event in self.epoll.poll(timeout):
+            if event & select.EPOLLIN or \
+               event & select.EPOLLOUT:
+                rv.append((fd, 'read'))
+            if event & select.EPOLLOUT:
+                rv.append((fd, 'write'))
+        return rv
 
 
 available_pollers = [poll for poll in [KQueuePoller, PollPoller,

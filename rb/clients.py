@@ -1,4 +1,6 @@
 import time
+import errno
+import socket
 
 from weakref import ref as weakref
 from itertools import izip
@@ -20,6 +22,39 @@ AUTO_BATCH_COMMANDS = {
 def assert_open(client):
     if client.closed:
         raise ValueError('I/O operation on closed file')
+
+
+def send_buffer(buf, sock, block=False):
+    try:
+        if not block:
+            timeout = sock.gettimeout()
+            sock.setblocking(False)
+        try:
+            for idx, item in enumerate(buf):
+                sent = 0
+                while 1:
+                    try:
+                        sent = sock.send(item)
+                    except IOError as e:
+                        if e.errno == errno.EAGAIN:
+                            continue
+                        elif e.errno == errno.EWOULDBLOCK:
+                            break
+                        raise
+                    break
+                if sent < len(item):
+                    del buf[:idx + 1]
+                    buf.insert(0, item[sent:])
+                    break
+            else:
+                del buf[:]
+        finally:
+            if not block:
+                sock.settimeout(timeout)
+    except IOError as e:
+        if isinstance(e, socket.timeout):
+            raise TimeoutError('Timeout writing to socket')
+        raise ConnectionError('Error while writing to socket')
 
 
 def merge_batch(command_name, arg_promise_tuples):
@@ -82,6 +117,7 @@ class CommandBuffer(object):
         self.commands = []
         self.pending_responses = []
         self.auto_batch = auto_batch
+        self._send_buf = []
 
         # Ensure we're connected.  Without this, we won't have a socket
         # we can select over.
@@ -106,31 +142,59 @@ class CommandBuffer(object):
         self.commands.append((command_name, args, promise))
         return promise
 
-    def send_pending_requests(self):
-        """Sends all pending requests into the connection."""
+    @property
+    def has_pending_requests(self):
+        """Indicates if there are outstanding pending requests on this
+        buffer.
+        """
+        return bool(self._send_buf or self.commands)
+
+    def send_pending_requests(self, block=False):
+        """Sends all pending requests into the connection.  The default is
+        to only send pending data that fits into the socket without blocking.
+        This returns `True` if all data was sent or `False` if pending data
+        is left over.  To force sending of all data which might incure
+        blocking you can set `block` to True.
+        """
         assert_open(self)
 
         unsent_commands = self.commands
-        if not unsent_commands:
-            return
-        self.commands = []
+        if unsent_commands:
+            self.commands = []
 
-        if self.auto_batch:
-            unsent_commands = auto_batch_commands(unsent_commands)
+            if self.auto_batch:
+                unsent_commands = auto_batch_commands(unsent_commands)
 
-        buf = []
-        for command_name, args, promise in unsent_commands:
-            buf.append((command_name,) + tuple(args))
-            self.pending_responses.append((command_name, promise))
+            buf = []
+            for command_name, args, promise in unsent_commands:
+                buf.append((command_name,) + tuple(args))
+                self.pending_responses.append((command_name, promise))
 
-        cmds = self.connection.pack_commands(buf)
-        self.connection.send_packed_command(cmds)
+            cmds = self.connection.pack_commands(buf)
+            self._send_buf.extend(cmds)
+
+        if not self._send_buf:
+            return True
+
+        try:
+            send_buffer(self._send_buf, self.connection._sock, block)
+        except Exception:
+            self.connection.disconnect()
+            raise
+
+        return not self._send_buf
 
     def wait_for_responses(self, client):
         """Waits for all responses to come back and resolves the
         eventual results.
         """
         assert_open(self)
+
+        if self.has_pending_requests:
+            raise RuntimeError('Cannot wait for responses if there are '
+                               'pending requests outstanding.  You need '
+                               'to wait for pending requests to be sent '
+                               'first.')
 
         pending = self.pending_responses
         self.pending_responses = []
@@ -245,7 +309,7 @@ class MappingClient(RoutingBaseClient):
             return buf
 
         while len(self._command_buffer_poll) >= self._max_concurrency:
-            self._try_to_clear_outstanding_requests()
+            self.join(timeout=1.0)
 
         connection = self.connection_pool.get_connection(
             command_name, shard_hint=host_id)
@@ -262,20 +326,6 @@ class MappingClient(RoutingBaseClient):
         self.connection_pool.release(command_buffer.connection)
         command_buffer.connection = None
 
-    def _try_to_clear_outstanding_requests(self, timeout=1.0):
-        """Tries to clear some outstanding requests in the given timeout
-        to reduce the concurrency pressure.
-        """
-        if not self._command_buffer_poll:
-            return
-
-        for command_buffer in self._command_buffer_poll:
-            command_buffer.send_pending_requests()
-
-        for command_buffer in self._command_buffer_poll.poll(timeout):
-            command_buffer.wait_for_responses(self)
-            self._release_command_buffer(command_buffer)
-
     # Custom Public API
 
     def join(self, timeout=None):
@@ -284,6 +334,8 @@ class MappingClient(RoutingBaseClient):
         """
         remaining = timeout
 
+        # Start the whole thing by sending all pending data that would not
+        # block.
         for command_buffer in self._command_buffer_poll:
             command_buffer.send_pending_requests()
 
@@ -293,9 +345,26 @@ class MappingClient(RoutingBaseClient):
             rv = self._command_buffer_poll.poll(remaining)
             if remaining is not None:
                 remaining -= (time.time() - now)
-            for command_buffer in rv:
-                command_buffer.wait_for_responses(self)
-                self._release_command_buffer(command_buffer)
+
+            for command_buffer, event in rv:
+                # This command buffer still has pending requests which
+                # means we have to send them out first before we can read
+                # all the data from it.
+                if command_buffer.has_pending_requests:
+                    if event == 'write':
+                        command_buffer.send_pending_requests()
+
+                # The general assumption is that all response is available
+                # or this might block.  On reading we do not use async
+                # receiving.  This generally works because latency in the
+                # network is low and redis is super quick in sending.  It
+                # does not make a lot of sense to complicate things here.
+                elif event == 'read':
+                    command_buffer.wait_for_responses(self)
+                    self._release_command_buffer(command_buffer)
+
+        if self._command_buffer_poll and timeout is not None:
+            raise TimeoutError('Did not receive all data in time.')
 
     def cancel(self):
         """Cancels all outstanding requests."""
