@@ -65,7 +65,7 @@ class PollPoller(BasePoller):
     def poll(self, timeout=None):
         rv = []
         for fd, event in self.pollobj.poll(timeout):
-            obj = self.event_to_object[fd]
+            obj = self.objects[fd]
             if event & select.EPOLLIN or \
                event & select.EPOLLOUT:
                 rv.append((obj, 'read'))
@@ -146,7 +146,7 @@ class EpollPoller(BasePoller):
             timeout = -1
         rv = []
         for fd, event in self.epoll.poll(timeout):
-            obj = self.event_to_object[fd]
+            obj = self.objects[fd]
             if event & select.EPOLLIN or \
                event & select.EPOLLOUT:
                 rv.append((obj, 'read'))
