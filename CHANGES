@@ -4,6 +4,8 @@ Rb Changelog
 Version 1.1
 -----------
 
+(released on Sep 9th 2015)
+
 - Added internal support for async writes which improves performance
   and parallelism with large command batches where the command is
   larger than the kernel buffer size.
