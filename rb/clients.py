@@ -24,14 +24,13 @@ def assert_open(client):
         raise ValueError('I/O operation on closed file')
 
 
-def send_buffer(buf, sock, block=False):
+def send_buffer(buf, sock, host_id):
     """Utility function that sends the buffer into the provided socket.
     The buffer itself will slowly clear out and is modified in place.
     """
     try:
-        if not block:
-            timeout = sock.gettimeout()
-            sock.setblocking(False)
+        timeout = sock.gettimeout()
+        sock.setblocking(False)
         try:
             for idx, item in enumerate(buf):
                 sent = 0
@@ -51,12 +50,13 @@ def send_buffer(buf, sock, block=False):
             else:
                 del buf[:]
         finally:
-            if not block:
-                sock.settimeout(timeout)
+            sock.settimeout(timeout)
     except IOError as e:
         if isinstance(e, socket.timeout):
-            raise TimeoutError('Timeout writing to socket')
-        raise ConnectionError('Error while writing to socket')
+            raise TimeoutError('Timeout writing to socket (host %s)'
+                               % host_id)
+        raise ConnectionError('Error while writing to socket (host %s)'
+                              % host_id)
 
 
 def merge_batch(command_name, arg_promise_tuples):
@@ -151,12 +151,11 @@ class CommandBuffer(object):
         """
         return bool(self._send_buf or self.commands)
 
-    def send_pending_requests(self, block=False):
+    def send_pending_requests(self):
         """Sends all pending requests into the connection.  The default is
         to only send pending data that fits into the socket without blocking.
         This returns `True` if all data was sent or `False` if pending data
-        is left over.  To force sending of all data which might incure
-        blocking you can set `block` to True.
+        is left over.
         """
         assert_open(self)
 
@@ -179,7 +178,7 @@ class CommandBuffer(object):
             return True
 
         try:
-            send_buffer(self._send_buf, self.connection._sock, block)
+            send_buffer(self._send_buf, self.connection._sock, self.host_id)
         except Exception:
             self.connection.disconnect()
             raise
