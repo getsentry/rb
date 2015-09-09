@@ -280,7 +280,7 @@ class MappingClient(RoutingBaseClient):
         # careful.  If you introduce any other variables here, then make
         # sure that FanoutClient.target still works correctly!
         self._max_concurrency = max_concurrency
-        self._command_buffer_poll = poll()
+        self._cb_poll = poll()
 
     # For the mapping client we can fix up some redis standard commands
     # as we are promise based and have some flexibility here.
@@ -305,17 +305,17 @@ class MappingClient(RoutingBaseClient):
 
     def _get_command_buffer(self, host_id, command_name):
         """Returns the command buffer for the given command and arguments."""
-        buf = self._command_buffer_poll.get(host_id)
+        buf = self._cb_poll.get(host_id)
         if buf is not None:
             return buf
 
-        while len(self._command_buffer_poll) >= self._max_concurrency:
+        while len(self._cb_poll) >= self._max_concurrency:
             self.join(timeout=1.0)
 
         connection = self.connection_pool.get_connection(
             command_name, shard_hint=host_id)
         buf = CommandBuffer(host_id, connection, self.auto_batch)
-        self._command_buffer_poll.register(host_id, buf)
+        self._cb_poll.register(host_id, buf)
         return buf
 
     def _release_command_buffer(self, command_buffer):
@@ -323,7 +323,7 @@ class MappingClient(RoutingBaseClient):
         if command_buffer.closed:
             return
 
-        self._command_buffer_poll.unregister(command_buffer.host_id)
+        self._cb_poll.unregister(command_buffer.host_id)
         self.connection_pool.release(command_buffer.connection)
         command_buffer.connection = None
 
@@ -335,15 +335,9 @@ class MappingClient(RoutingBaseClient):
         """
         remaining = timeout
 
-        # Start the whole thing by sending all pending data that would not
-        # block.
-        for command_buffer in self._command_buffer_poll:
-            command_buffer.send_pending_requests()
-
-        while self._command_buffer_poll and (remaining is None or
-                                             remaining > 0):
+        while self._cb_poll and (remaining is None or remaining > 0):
             now = time.time()
-            rv = self._command_buffer_poll.poll(remaining)
+            rv = self._cb_poll.poll(remaining)
             if remaining is not None:
                 remaining -= (time.time() - now)
 
@@ -364,12 +358,12 @@ class MappingClient(RoutingBaseClient):
                     command_buffer.wait_for_responses(self)
                     self._release_command_buffer(command_buffer)
 
-        if self._command_buffer_poll and timeout is not None:
+        if self._cb_poll and timeout is not None:
             raise TimeoutError('Did not receive all data in time.')
 
     def cancel(self):
         """Cancels all outstanding requests."""
-        for command_buffer in self._command_buffer_poll:
+        for command_buffer in self._cb_poll:
             self._release_command_buffer(command_buffer)
 
 
@@ -398,7 +392,7 @@ class FanoutClient(MappingClient):
             raise TypeError('Cannot use target more than once.')
         rv = FanoutClient(hosts, connection_pool=self.connection_pool,
                           max_concurrency=self._max_concurrency)
-        rv._command_buffer_poll = self._command_buffer_poll
+        rv._cb_poll = self._cb_poll
         rv._target_hosts = hosts
         rv.__is_retargeted = True
         return rv
