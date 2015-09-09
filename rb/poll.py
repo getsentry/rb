@@ -1,10 +1,6 @@
 import select
 
 
-EV_READ = 1
-EV_WRITE = 2
-
-
 class BasePoller(object):
     is_availabe = False
 
