@@ -7,7 +7,11 @@ from itertools import izip
 
 from redis import StrictRedis
 from redis.client import list_or_args
-from redis.exceptions import ConnectionError, TimeoutError
+from redis.exceptions import ConnectionError
+try:
+    from redis.exceptions import TimeoutError
+except ImportError:
+    TimeoutError = ConnectionError
 
 from rb.promise import Promise
 from rb.poll import poll
