@@ -1,6 +1,13 @@
 Rb Changelog
 ============
 
+Version 1.1.1
+-------------
+
+(released on Sep 15th 2015)
+
+- Made rb work with older versions of pyredis.
+
 Version 1.1
 -----------
 
