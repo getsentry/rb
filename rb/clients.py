@@ -313,7 +313,8 @@ class MappingClient(RoutingBaseClient):
         if buf is not None:
             return buf
 
-        while len(self._cb_poll) >= self._max_concurrency:
+        while self._max_concurrency is not None and \
+                len(self._cb_poll) >= self._max_concurrency:
             self.join(timeout=1.0)
 
         connection = self.connection_pool.get_connection(
@@ -397,7 +398,6 @@ class FanoutClient(MappingClient):
         rv = FanoutClient(hosts, connection_pool=self.connection_pool,
                           max_concurrency=self._max_concurrency)
         rv._cb_poll = self._cb_poll
-        rv._target_hosts = hosts
         rv.__is_retargeted = True
         return rv
 
@@ -551,5 +551,5 @@ class MapManager(object):
         else:
             timeout = self.timeout
             if timeout is not None:
-                timeout = max(1, timeout - (time.time() - self.started))
+                timeout = max(1, timeout - (time.time() - self.entered))
             self.mapping_client.join(timeout=timeout)
