@@ -1,6 +1,11 @@
 Rb Changelog
 ============
 
+Version 1.1.2
+-------------
+
+- Fixed command buffers for disabled max concurrency.
+
 Version 1.1.1
 -------------
 

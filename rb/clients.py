@@ -313,8 +313,9 @@ class MappingClient(RoutingBaseClient):
         if buf is not None:
             return buf
 
-        while len(self._cb_poll) >= self._max_concurrency:
-            self.join(timeout=1.0)
+        if self._max_concurrency is not None:
+            while len(self._cb_poll) >= self._max_concurrency:
+                self.join(timeout=1.0)
 
         connection = self.connection_pool.get_connection(
             command_name, shard_hint=host_id)
