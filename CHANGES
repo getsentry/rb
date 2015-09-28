@@ -4,6 +4,8 @@ Rb Changelog
 Version 1.1.2
 -------------
 
+(released on Sep 28th 2015)
+
 - Fixed command buffers for disabled max concurrency.
 - Fixed map manager timeouts.
 
