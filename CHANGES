@@ -5,6 +5,7 @@ Version 1.1.2
 -------------
 
 - Fixed command buffers for disabled max concurrency.
+- Fixed map manager timeouts.
 
 Version 1.1.1
 -------------

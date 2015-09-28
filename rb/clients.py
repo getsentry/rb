@@ -551,5 +551,5 @@ class MapManager(object):
         else:
             timeout = self.timeout
             if timeout is not None:
-                timeout = max(1, timeout - (time.time() - self.started))
+                timeout = max(1, timeout - (time.time() - self.entered))
             self.mapping_client.join(timeout=timeout)
