@@ -398,7 +398,6 @@ class FanoutClient(MappingClient):
         rv = FanoutClient(hosts, connection_pool=self.connection_pool,
                           max_concurrency=self._max_concurrency)
         rv._cb_poll = self._cb_poll
-        rv._target_hosts = hosts
         rv.__is_retargeted = True
         return rv
 
