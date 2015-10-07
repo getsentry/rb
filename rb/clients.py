@@ -388,6 +388,7 @@ class FanoutClient(MappingClient):
                                auto_batch=auto_batch)
         self._target_hosts = hosts
         self.__is_retargeted = False
+        self.__resolve_singular_result = False
 
     def target(self, hosts):
         """Temporarily retarget the client for one call.  This is useful
@@ -403,13 +404,17 @@ class FanoutClient(MappingClient):
 
     def target_key(self, key):
         """Temporarily retarget the client for one call to route
-        specifically to the one host that the given key routes to.
+        specifically to the one host that the given key routes to.  In
+        that case the result on the promise is just the one host's value
+        instead of a dictionary.
 
-        .. versionadded:: 1.2
+        .. versionadded:: 1.3
         """
         router = self.connection_pool.cluster.get_router()
         host_id = router.get_host_for_key(key)
-        return self.target([host_id])
+        rv = self.target([host_id])
+        rv.__resolve_singular_result = True
+        return rv
 
     def execute_command(self, *args):
         promises = {}
@@ -422,7 +427,11 @@ class FanoutClient(MappingClient):
 
         for host_id in hosts:
             buf = self._get_command_buffer(host_id, args[0])
-            promises[host_id] = buf.enqueue_command(args[0], args[1:])
+            promise = buf.enqueue_command(args[0], args[1:])
+            if self.__resolve_singular_result and len(hosts) == 1:
+                return promise
+            promises[host_id] = promise
+
         return Promise.all(promises)
 
 

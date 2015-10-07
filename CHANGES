@@ -1,6 +1,15 @@
 Rb Changelog
 ============
 
+Version 1.3
+-----------
+
+(released on Oct 7th 2015)
+
+- Quickly fixed `target_key`'s behavior to make sense so that the
+  result on the promise is the value instead of a dictionary of a
+  single host.
+
 Version 1.2
 -----------
 

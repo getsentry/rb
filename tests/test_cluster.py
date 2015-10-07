@@ -124,7 +124,10 @@ def test_fanout_api(cluster):
 
 def test_fanout_key_target(cluster):
     with cluster.fanout() as client:
-        client.target_key('foo').set('foo', str(42))
+        c = client.target_key('foo')
+        c.set('foo', str(42))
+        promise = c.get('foo')
+    assert promise.value == '42'
 
     client = cluster.get_routing_client()
     assert client.get('foo') == '42'
