@@ -4,7 +4,7 @@ Rb Changelog
 Version 1.2
 -----------
 
-(release date to be decided)
+(released on Oct 7th 2015)
 
 - Added `target_key` to the fanout client to simplify targeting of hosts.
 
