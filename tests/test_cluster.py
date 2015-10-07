@@ -122,6 +122,14 @@ def test_fanout_api(cluster):
         assert result.value[host_id] == str(host_id)
 
 
+def test_fanout_key_target(cluster):
+    with cluster.fanout() as client:
+        client.target_key('foo').set('foo', str(42))
+
+    client = cluster.get_routing_client()
+    assert client.get('foo') == '42'
+
+
 def test_fanout_targeting_api(cluster):
     with cluster.fanout() as client:
         client.target(hosts=[0, 1]).set('foo', 42)

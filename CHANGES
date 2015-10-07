@@ -6,6 +6,8 @@ Version 1.2
 
 (release date to be decided)
 
+- Added `target_key` to the fanout client to simplify targeting of hosts.
+
 Version 1.1.2
 -------------
 

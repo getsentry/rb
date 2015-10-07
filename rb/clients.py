@@ -401,6 +401,16 @@ class FanoutClient(MappingClient):
         rv.__is_retargeted = True
         return rv
 
+    def target_key(self, key):
+        """Temporarily retarget the client for one call to route
+        specifically to the one host that the given key routes to.
+
+        .. versionadded:: 1.2
+        """
+        router = self.connection_pool.cluster.get_router()
+        host_id = router.get_host_for_key(key)
+        return self.target([host_id])
+
     def execute_command(self, *args):
         promises = {}
 
