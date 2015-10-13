@@ -5,6 +5,7 @@ Version 1.3.1
 -------------
 
 - Fixed an illogical constructor for the local client.
+- Fixed a problem with clearing out pending batches.
 
 Version 1.3
 -----------

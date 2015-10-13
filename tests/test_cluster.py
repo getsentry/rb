@@ -1,6 +1,7 @@
 import pytest
 from rb.cluster import Cluster
 from rb.router import UnroutableCommand
+from rb.promise import Promise
 
 
 def test_basic_interface():
@@ -152,3 +153,20 @@ def test_emulated_batch_apis(cluster):
     with cluster.map() as map_client:
         promise = map_client.mget(['key:%s' % x for x in range(10)])
     assert promise.value == [str(x) for x in range(10)]
+
+
+def test_batch_promise_all(cluster):
+    with cluster.map() as client:
+        client.set('1', 'a')
+        client.set('2', 'b')
+        client.set('3', 'c')
+        client.set('4', 'd')
+        client.hset('a', 'b', 'XXX')
+
+    with cluster.map() as client:
+        rv = Promise.all([
+            client.mget('1', '2'),
+            client.hget('a', 'b'),
+            client.mget('3', '4'),
+        ])
+    assert rv.value == [['a', 'b'], 'XXX', ['c', 'd']]
