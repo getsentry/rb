@@ -545,11 +545,10 @@ class LocalClient(BaseClient):
     host.
     """
 
-    def __init__(self, cluster, connection_pool=None, **kwargs):
+    def __init__(self, connection_pool=None, **kwargs):
         if connection_pool is None:
             raise TypeError('The local client needs a connection pool')
-        BaseClient.__init__(self, cluster, connection_pool=connection_pool,
-                            **kwargs)
+        BaseClient.__init__(self, connection_pool=connection_pool, **kwargs)
 
 
 class MapManager(object):
