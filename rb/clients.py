@@ -99,7 +99,7 @@ def auto_batch_commands(commands):
         if command_name not in AUTO_BATCH_COMMANDS:
             if pending_batch:
                 yield merge_batch(*pending_batch)
-                None
+                pending_batch = None
             yield command_name, args, promise
             continue
 
