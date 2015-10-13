@@ -217,7 +217,7 @@ class Cluster(object):
         immediately.
         """
         return LocalClient(
-            self, connection_pool=self.get_pool_for_host(host_id))
+            connection_pool=self.get_pool_for_host(host_id))
 
     def get_local_client_for_key(self, key):
         """Similar to :meth:`get_local_client_for_key` but returns the
