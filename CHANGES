@@ -1,6 +1,11 @@
 Rb Changelog
 ============
 
+Version 1.3.2
+-------------
+
+- Fixed partition router to get the right routed host.
+
 Version 1.3.1
 -------------
 
