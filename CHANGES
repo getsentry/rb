@@ -1,6 +1,11 @@
 Rb Changelog
 ============
 
+Version 1.3.2
+-------------
+
+- Fixed cluster for host defaults support.
+
 Version 1.3.1
 -------------
 
