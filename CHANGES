@@ -1,6 +1,12 @@
 Rb Changelog
 ============
 
+Version 1.3.2
+-------------
+
+- Fixed partition router to get the right routed host.
+- Make host_defaults of cluster work.
+
 Version 1.3.1
 -------------
 

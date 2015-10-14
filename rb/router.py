@@ -105,9 +105,16 @@ class PartitionRouter(BaseRouter):
     single nodes based on a simple ``crc32 % node_count`` setup.
     """
 
+    def __init__(self, cluster):
+        BaseRouter.__init__(self, cluster)
+        self._hosts = sorted(self.cluster.hosts.values(),
+                             key=lambda host: host.host_id)
+
     def get_host_for_key(self, key):
         if isinstance(key, unicode):
             k = key.encode('utf-8')
         else:
             k = str(key)
-        return crc32(k) % len(self.cluster.hosts)
+        pos = crc32(k) % len(self._hosts)
+        host = self._hosts[pos]
+        return host.host_id
