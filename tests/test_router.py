@@ -1,7 +1,7 @@
 import pytest
 
 from rb.cluster import Cluster
-from rb.router import UnroutableCommand, extract_keys
+from rb.router import UnroutableCommand, extract_keys, BadHostSetup
 
 
 def test_router_key_routing():
@@ -26,7 +26,7 @@ def test_host_validation():
     })
     try:
         cluster.get_router()
-    except RuntimeError as e:
+    except BadHostSetup as e:
         assert 'Expected host with ID "0"' in str(e)
     else:
         raise Exception('Expected runtime error')

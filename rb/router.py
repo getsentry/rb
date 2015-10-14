@@ -11,6 +11,12 @@ class UnroutableCommand(Exception):
     """
 
 
+class BadHostSetup(Exception):
+    """Raised if the cluster's host setup is not compatible with the
+    router.
+    """
+
+
 def extract_keys(args, key_spec):
     first, last, step = key_spec
 
@@ -23,12 +29,21 @@ def extract_keys(args, key_spec):
     return rv
 
 
+def assert_gapless_hosts(hosts):
+    if not hosts:
+        raise BadHostSetup('No hosts were configured.')
+    for x in xrange(len(hosts)):
+        if hosts.get(x) is None:
+            raise BadHostSetup('Expected host with ID "%d" but no such '
+                               'host was found.' % x)
+
+
 class BaseRouter(object):
     """Baseclass for all routers.  If you want to implement a custom router
     this is what you subclass.
     """
 
-    def __init__(self, cluster=None):
+    def __init__(self, cluster):
         # this is a weakref because the router is cached on the cluster
         # and otherwise we end up in circular reference land and we are
         # having problems being garbage collected.
@@ -85,12 +100,16 @@ class ConsistentHashingRouter(BaseRouter):
     """Router that returns the host_id based on a consistent hashing
     algorithm.  The consistent hashing algorithm only works if a key
     argument is provided.
+
+    This router requires that the hosts are gapless which means that
+    the IDs for N hosts range from 0 to N-1.
     """
 
     def __init__(self, cluster):
         BaseRouter.__init__(self, cluster)
         self._host_id_id_map = dict(self.cluster.hosts.items())
         self._hash = Ketama(self._host_id_id_map.values())
+        assert_gapless_hosts(self.cluster.hosts)
 
     def get_host_for_key(self, key):
         rv = self._hash.get_node(key)
@@ -103,7 +122,14 @@ class ConsistentHashingRouter(BaseRouter):
 class PartitionRouter(BaseRouter):
     """A straightforward router that just individually routes commands to
     single nodes based on a simple ``crc32 % node_count`` setup.
+
+    This router requires that the hosts are gapless which means that
+    the IDs for N hosts range from 0 to N-1.
     """
+
+    def __init__(self, cluster):
+        BaseRouter.__init__(self, cluster)
+        assert_gapless_hosts(self.cluster.hosts)
 
     def get_host_for_key(self, key):
         if isinstance(key, unicode):
