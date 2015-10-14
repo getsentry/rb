@@ -44,9 +44,15 @@ class HostInfo(object):
         )
 
 
-def _iter_hosts(iterable):
+def _iter_hosts(iterable, host_defaults):
     if isinstance(iterable, dict):
         iterable = iterable.iteritems()
+    if host_defaults:
+        # in case host id is set accidentally
+        try:
+            del host_defaults['host_id']
+        except KeyError:
+            pass
     for item in iterable:
         if isinstance(item, tuple):
             host_id, cfg = item
@@ -54,6 +60,9 @@ def _iter_hosts(iterable):
             cfg['host_id'] = host_id
         else:
             cfg = item
+        if host_defaults:
+            for k, v in host_defaults.iteritems():
+                cfg.setdefault(k, v)
         yield cfg
 
 
@@ -99,7 +108,7 @@ class Cluster(object):
         self.hosts = {}
         self._hosts_age = 0
         self.host_defaults = host_defaults or {}
-        for host_config in _iter_hosts(hosts):
+        for host_config in _iter_hosts(hosts, self.host_defaults):
             self.add_host(**host_config)
 
     def add_host(self, host_id=None, host='localhost', port=6379,

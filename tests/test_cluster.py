@@ -9,6 +9,8 @@ def test_basic_interface():
         0: {'db': 0},
         1: {'db': 2},
         2: {'db': 4, 'host': '127.0.0.1'},
+    }, host_defaults={
+        'password': 'pass',
     })
 
     assert len(cluster.hosts) == 3
@@ -17,16 +19,19 @@ def test_basic_interface():
     assert cluster.hosts[0].db == 0
     assert cluster.hosts[0].host == 'localhost'
     assert cluster.hosts[0].port == 6379
+    assert cluster.hosts[0].password == 'pass'
 
     assert cluster.hosts[1].host_id == 1
     assert cluster.hosts[1].db == 2
     assert cluster.hosts[1].host == 'localhost'
     assert cluster.hosts[1].port == 6379
+    assert cluster.hosts[1].password == 'pass'
 
     assert cluster.hosts[2].host_id == 2
     assert cluster.hosts[2].db == 4
     assert cluster.hosts[2].host == '127.0.0.1'
     assert cluster.hosts[2].port == 6379
+    assert cluster.hosts[2].password == 'pass'
 
 
 def test_router_access():
