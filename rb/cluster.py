@@ -162,9 +162,19 @@ class Cluster(object):
                 return router
 
         with self._lock:
+            self.validate_hosts()
             router = self.router_cls(self, **(self.router_options or {}))
             self._router = (router, ref_age)
             return router
+
+    def validate_hosts(self):
+        """Checks that the hosts are valid."""
+        if not self.hosts:
+            raise RuntimeError('No hosts were configured.')
+        for x in xrange(len(self.hosts)):
+            if self.hosts.get(x) is None:
+                raise RuntimeError('Expected host with ID "%d" but no such '
+                                   'host was found.' % x)
 
     def get_pool_for_host(self, host_id):
         """Returns the connection pool for the given host.

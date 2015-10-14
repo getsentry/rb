@@ -20,6 +20,18 @@ def test_router_key_routing():
         router.get_key('UNKNOWN', [])
 
 
+def test_host_validation():
+    cluster = Cluster(hosts={
+        1: {}
+    })
+    try:
+        cluster.get_router()
+    except RuntimeError as e:
+        assert 'Expected host with ID "0"' in str(e)
+    else:
+        raise Exception('Expected runtime error')
+
+
 def test_router_basics():
     cluster = Cluster({
         0: {'db': 0},
