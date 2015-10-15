@@ -10,6 +10,7 @@ Version 1.3.1
 - Fixed a problem with clearing out pending batches.
 - Hosts are now validated to not have holes in the two shipped routers
   which both depend on a gapless setup.
+- Connection errors now try to print out the original IO error's infos.
 
 Version 1.3
 -----------

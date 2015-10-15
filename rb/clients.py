@@ -59,8 +59,8 @@ def send_buffer(buf, sock, host_id):
         if isinstance(e, socket.timeout):
             raise TimeoutError('Timeout writing to socket (host %s)'
                                % host_id)
-        raise ConnectionError('Error while writing to socket (host %s)'
-                              % host_id)
+        raise ConnectionError('Error while writing to socket (host %s): %s'
+                              % (host_id, e))
 
 
 def merge_batch(command_name, arg_promise_tuples):
