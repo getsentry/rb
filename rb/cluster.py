@@ -100,6 +100,9 @@ class Cluster(object):
         self._hosts_age = 0
         self.host_defaults = host_defaults or {}
         for host_config in _iter_hosts(hosts):
+            if self.host_defaults:
+                for k, v in self.host_defaults.iteritems():
+                    host_config.setdefault(k, v)
             self.add_host(**host_config)
 
     def add_host(self, host_id=None, host='localhost', port=6379,
