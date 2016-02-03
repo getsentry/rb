@@ -33,7 +33,9 @@ class SelectPoller(BasePoller):
 
     def poll(self, timeout=None):
         objs = self.objects.values()
-        rlist, wlist, _ = select.select(objs, objs, [], timeout)
+        rlist, wlist, xlist = select.select(objs, objs, [], timeout)
+        if xlist:
+            raise RuntimeError('Got unexpected OOB data')
         return [(x, 'read') for x in rlist] + [(x, 'write') for x in wlist]
 
 
@@ -62,10 +64,12 @@ class PollPoller(BasePoller):
         rv = []
         for fd, event in self.pollobj.poll(timeout):
             obj = self.fd_to_object[fd]
-            if event & select.POLLIN or event & select.POLLHUP:
+            if event & select.POLLIN:
                 rv.append((obj, 'read'))
             if event & select.POLLOUT:
                 rv.append((obj, 'write'))
+            if event & select.POLLHUP:
+                rv.append((obj, 'close'))
         return rv
 
 
@@ -112,6 +116,8 @@ class KQueuePoller(BasePoller):
                 rv.append((obj, 'read'))
             elif ev.filter == select.KQ_FILTER_WRITE:
                 rv.append((obj, 'write'))
+            if ev.flags & select.KQ_EV_EOF:
+                rv.append((obj, 'close'))
         return rv
 
 
@@ -142,10 +148,12 @@ class EpollPoller(BasePoller):
         rv = []
         for fd, event in self.epoll.poll(timeout):
             obj = self.fd_to_object[fd]
-            if event & select.EPOLLIN or event & select.EPOLLHUP:
+            if event & select.EPOLLIN:
                 rv.append((obj, 'read'))
             if event & select.EPOLLOUT:
                 rv.append((obj, 'write'))
+            if event & select.EPOLLHUP:
+                rv.append((obj, 'close'))
         return rv
 
 

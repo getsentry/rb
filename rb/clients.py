@@ -351,6 +351,9 @@ class MappingClient(RoutingBaseClient):
                 # means we have to send them out first before we can read
                 # all the data from it.
                 if command_buffer.has_pending_requests:
+                    if event == 'close':
+                        raise ConnectionError('Error while trying to write '
+                                              'requests to redis.')
                     if event == 'write':
                         command_buffer.send_pending_requests()
 
@@ -359,7 +362,7 @@ class MappingClient(RoutingBaseClient):
                 # receiving.  This generally works because latency in the
                 # network is low and redis is super quick in sending.  It
                 # does not make a lot of sense to complicate things here.
-                elif event == 'read':
+                elif event in ('read', 'close'):
                     command_buffer.wait_for_responses(self)
                     self._release_command_buffer(command_buffer)
 

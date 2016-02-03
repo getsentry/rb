@@ -5,6 +5,8 @@ Version 1.3.2
 -------------
 
 - Fixed cluster for host defaults support.
+- Changed poller to handle close explicitly.  This should prevent
+  bad loops in when the socket closes while writing.
 
 Version 1.3.1
 -------------
