@@ -6,15 +6,11 @@ except ImportError:
     SSLConnection = None
 
 import functools
-import logging
 from hashlib import sha1
 from threading import Lock
 
 from rb.router import PartitionRouter
 from rb.clients import RoutingClient, LocalClient
-
-
-logger = logging.getLogger(__name__)
 
 
 class HostInfo(object):
@@ -340,7 +336,13 @@ class Cluster(object):
 
         def check_script_load_result(script, result):
             if script.sha != result:
-                logger.warning('Hash mismatch loading %r: expected %r, got %r!', script, script.sha, result)
+                raise AssertionError(
+                    'Hash mismatch loading {!r}: expected {!r}, got {!r}'.format(
+                        script,
+                        script.sha,
+                        result,
+                    )
+                )
 
         # Run through all the commands and check to see if there are any
         # scripts, and whether or not they have been loaded onto the target
@@ -377,7 +379,7 @@ class Cluster(object):
                         for host in targeted._target_hosts:
                             if script in exists[host]:
                                 result = exists[host].pop(script)
-                                if bool(result.value[0]) == False:
+                                if not result.value[0]:
                                     targeted.execute_command('SCRIPT LOAD', script.script).done(
                                         on_success=functools.partial(check_script_load_result, script)
                                     )
