@@ -1,12 +1,13 @@
 Rb Changelog
 ============
 
-Version 1.3.2
--------------
+Version 1.4
+-----------
 
 - Fixed cluster for host defaults support.
 - Changed poller to handle close explicitly.  This should prevent
   bad loops in when the socket closes while writing.
+- Added support for execute_commands.
 
 Version 1.3.1
 -------------
