@@ -1,4 +1,5 @@
 import pytest
+from redis.client import Script
 from rb.cluster import Cluster
 from rb.router import UnroutableCommand
 from rb.promise import Promise
@@ -175,3 +176,32 @@ def test_batch_promise_all(cluster):
             client.mget('3', '4'),
         ])
     assert rv.value == [['a', 'b'], 'XXX', ['c', 'd']]
+
+
+def test_execute_commands(cluster):
+    TestScript = Script(None, 'return {KEYS, ARGV}')
+
+    assert not TestScript.sha
+
+    results = cluster.execute_commands({
+        'foo': [
+            ('SET', 'foo', '1'),
+            (TestScript, ('key',), ('value',)),
+            ('GET', 'foo'),
+        ],
+        'bar': [
+            ('INCRBY', 'bar', '2'),
+            (TestScript, ('key',), ('value',)),
+            ('GET', 'bar'),
+        ],
+    })
+
+    assert TestScript.sha
+
+    assert results['foo'][0].value == True
+    assert results['foo'][1].value == [['key'], ['value']]
+    assert results['foo'][2].value == '1'
+
+    assert results['bar'][0].value == 2
+    assert results['bar'][1].value == [['key'], ['value']]
+    assert results['bar'][2].value == '2'
