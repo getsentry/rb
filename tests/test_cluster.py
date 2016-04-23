@@ -198,7 +198,7 @@ def test_execute_commands(cluster):
 
     assert TestScript.sha
 
-    assert results['foo'][0].value == True
+    assert results['foo'][0].value
     assert results['foo'][1].value == [['key'], ['value']]
     assert results['foo'][2].value == '1'
 
