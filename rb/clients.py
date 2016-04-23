@@ -14,7 +14,7 @@ except ImportError:
     TimeoutError = ConnectionError
 
 from rb.promise import Promise
-from rb.poll import poll
+from rb.poll import poll, is_closed
 
 
 AUTO_BATCH_COMMANDS = {
@@ -225,9 +225,19 @@ class RoutingPool(object):
                                'as shard hint')
 
         real_pool = self.cluster.get_pool_for_host(host_id)
-        con = real_pool.get_connection(command_name)
-        con.__creating_pool = weakref(real_pool)
-        return con
+
+        # When we check something out from the real underlying pool it's
+        # very much possible that the connection is stale.  This is why we
+        # check out up to 10 connections which are either not connected
+        # yet or verified alive.
+        for _ in xrange(10):
+            con = real_pool.get_connection(command_name)
+            if con._sock is None or not is_closed(con._sock):
+                con.__creating_pool = weakref(real_pool)
+                return con
+
+        raise ConnectionError('Failed to check out a valid connection '
+                              '(host %s)' % host_id)
 
     def release(self, connection):
         # The real pool is referenced by the connection through an

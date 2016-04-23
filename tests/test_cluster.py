@@ -1,3 +1,4 @@
+import time
 import pytest
 from redis.client import Script
 from rb.cluster import Cluster
@@ -205,3 +206,22 @@ def test_execute_commands(cluster):
     assert results['bar'][0].value == 2
     assert results['bar'][1].value == [['key'], ['value']]
     assert results['bar'][2].value == '2'
+
+
+def test_reconnect(cluster):
+    with cluster.map() as client:
+        for x in xrange(10):
+            client.set(str(x), str(x))
+
+    with cluster.all() as client:
+        client.config_set('timeout', 1)
+
+    time.sleep(2)
+
+    with cluster.map() as client:
+        rv = Promise.all([
+            client.get(str(x))
+            for x in xrange(10)
+        ])
+
+    assert rv.value == list(map(str, xrange(10)))

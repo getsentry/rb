@@ -157,6 +157,15 @@ class EpollPoller(BasePoller):
         return rv
 
 
+def is_closed(f):
+    poller = poll()
+    poller.register(None, f)
+    for _, event in poller.poll(0.0):
+        if event == 'close':
+            return True
+    return False
+
+
 available_pollers = [poll for poll in [KQueuePoller, PollPoller,
                                        EpollPoller, SelectPoller]
                      if poll.is_available]
