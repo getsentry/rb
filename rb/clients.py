@@ -364,15 +364,19 @@ class MappingClient(RoutingBaseClient):
         try:
             command_buffer.send_pending_requests()
         except ConnectionError as e:
-            # If something was sent before, we can't do anything at which
-            # point we just reraise the underlying error.
-            if command_buffer.sent_something:
-                raise
-            self._release_command_buffer(command_buffer)
-            # If we cannot reconnect, reraise the error.
-            if not command_buffer.reconnect():
-                raise e
-            self._cb_poll.register(command_buffer.host_id, command_buffer)
+            self._try_reconnect(command_buffer, e)
+
+    def _try_reconnect(self, command_buffer, err=None):
+        # If something was sent before, we can't do anything at which
+        # point we just reraise the underlying error.
+        if command_buffer.sent_something:
+            raise err or ConnectionError('Cannot reconnect when data was '
+                                         'already sent.')
+        self._release_command_buffer(command_buffer)
+        # If we cannot reconnect, reraise the error.
+        if not command_buffer.reconnect():
+            raise err or ConnectionError('Too many attempts to reconnect.')
+        self._cb_poll.register(command_buffer.host_id, command_buffer)
 
     # Custom Public API
 
@@ -394,8 +398,7 @@ class MappingClient(RoutingBaseClient):
                 # all the data from it.
                 if command_buffer.has_pending_requests:
                     if event == 'close':
-                        raise ConnectionError('Error while trying to write '
-                                              'requests to redis.')
+                        self._try_reconnect(command_buffer)
                     if event == 'write':
                         self._send_or_reconnect(command_buffer)
 
