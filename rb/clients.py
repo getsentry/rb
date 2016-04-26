@@ -14,7 +14,7 @@ except ImportError:
     TimeoutError = ConnectionError
 
 from rb.promise import Promise
-from rb.poll import poll
+from rb.poll import poll, is_closed
 
 
 AUTO_BATCH_COMMANDS = {
@@ -26,41 +26,6 @@ AUTO_BATCH_COMMANDS = {
 def assert_open(client):
     if client.closed:
         raise ValueError('I/O operation on closed file')
-
-
-def send_buffer(buf, sock, host_id):
-    """Utility function that sends the buffer into the provided socket.
-    The buffer itself will slowly clear out and is modified in place.
-    """
-    try:
-        timeout = sock.gettimeout()
-        sock.setblocking(False)
-        try:
-            for idx, item in enumerate(buf):
-                sent = 0
-                while 1:
-                    try:
-                        sent = sock.send(item)
-                    except IOError as e:
-                        if e.errno == errno.EAGAIN:
-                            continue
-                        elif e.errno == errno.EWOULDBLOCK:
-                            break
-                        raise
-                    break
-                if sent < len(item):
-                    buf[:idx + 1] = [item[sent:]]
-                    break
-            else:
-                del buf[:]
-        finally:
-            sock.settimeout(timeout)
-    except IOError as e:
-        if isinstance(e, socket.timeout):
-            raise TimeoutError('Timeout writing to socket (host %s)'
-                               % host_id)
-        raise ConnectionError('Error while writing to socket (host %s): %s'
-                              % (host_id, e))
 
 
 def merge_batch(command_name, arg_promise_tuples):
@@ -117,22 +82,41 @@ def auto_batch_commands(commands):
 class CommandBuffer(object):
     """The command buffer is an internal construct """
 
-    def __init__(self, host_id, connection, auto_batch=True):
+    def __init__(self, host_id, connect, auto_batch=True):
         self.host_id = host_id
-        self.connection = connection
+        self.connection = None
+        self._connect_func = connect
+        self.connect()
         self.commands = []
         self.pending_responses = []
         self.auto_batch = auto_batch
+        self.sent_something = False
+        self.reconnects = 0
         self._send_buf = []
-
-        # Ensure we're connected.  Without this, we won't have a socket
-        # we can select over.
-        connection.connect()
 
     @property
     def closed(self):
         """Indicates if the command buffer is closed."""
         return self.connection is None or self.connection._sock is None
+
+    def connect(self):
+        if self.connection is not None:
+            return
+        self.connection = self._connect_func()
+        # Ensure we're connected.  Without this, we won't have a socket
+        # we can select over.
+        self.connection.connect()
+
+    def reconnect(self):
+        if self.sent_something:
+            raise RuntimeError('Cannot reset command buffer that already '
+                               'sent out data.')
+        if self.reconnects > 5:
+            return False
+        self.reconnects += 1
+        self.connection = None
+        self.connect()
+        return True
 
     def fileno(self):
         """Returns the file number of the underlying connection's socket
@@ -154,6 +138,44 @@ class CommandBuffer(object):
         buffer.
         """
         return bool(self._send_buf or self.commands)
+
+    def send_buffer(self):
+        """Utility function that sends the buffer into the provided socket.
+        The buffer itself will slowly clear out and is modified in place.
+        """
+        buf = self._send_buf
+        sock = self.connection._sock
+        try:
+            timeout = sock.gettimeout()
+            sock.setblocking(False)
+            try:
+                for idx, item in enumerate(buf):
+                    sent = 0
+                    while 1:
+                        try:
+                            sent = sock.send(item)
+                        except IOError as e:
+                            if e.errno == errno.EAGAIN:
+                                continue
+                            elif e.errno == errno.EWOULDBLOCK:
+                                break
+                            raise
+                        self.sent_something = True
+                        break
+                    if sent < len(item):
+                        buf[:idx + 1] = [item[sent:]]
+                        break
+                else:
+                    del buf[:]
+            finally:
+                sock.settimeout(timeout)
+        except IOError as e:
+            self.connection.disconnect()
+            if isinstance(e, socket.timeout):
+                raise TimeoutError('Timeout writing to socket (host %s)'
+                                   % self.host_id)
+            raise ConnectionError('Error while writing to socket (host %s): %s'
+                                  % (self.host_id, e))
 
     def send_pending_requests(self):
         """Sends all pending requests into the connection.  The default is
@@ -181,12 +203,7 @@ class CommandBuffer(object):
         if not self._send_buf:
             return True
 
-        try:
-            send_buffer(self._send_buf, self.connection._sock, self.host_id)
-        except Exception:
-            self.connection.disconnect()
-            raise
-
+        self.send_buffer()
         return not self._send_buf
 
     def wait_for_responses(self, client):
@@ -231,13 +248,8 @@ class RoutingPool(object):
         # check out up to 10 connections which are either not connected
         # yet or verified alive.
         for _ in xrange(10):
-            try:
-                con = real_pool.get_connection(command_name)
-                con.send_command('PING')
-                con.read_response()
-            except (ConnectionError, TimeoutError):
-                continue
-            else:
+            con = real_pool.get_connection(command_name)
+            if con._sock is None or not is_closed(con._sock):
                 con.__creating_pool = weakref(real_pool)
                 return con
 
@@ -332,9 +344,10 @@ class MappingClient(RoutingBaseClient):
             while len(self._cb_poll) >= self._max_concurrency:
                 self.join(timeout=1.0)
 
-        connection = self.connection_pool.get_connection(
-            command_name, shard_hint=host_id)
-        buf = CommandBuffer(host_id, connection, self.auto_batch)
+        def connect():
+            return self.connection_pool.get_connection(
+                command_name, shard_hint=host_id)
+        buf = CommandBuffer(host_id, connect, self.auto_batch)
         self._cb_poll.register(host_id, buf)
         return buf
 
@@ -346,6 +359,20 @@ class MappingClient(RoutingBaseClient):
         self._cb_poll.unregister(command_buffer.host_id)
         self.connection_pool.release(command_buffer.connection)
         command_buffer.connection = None
+
+    def _send_or_reconnect(self, command_buffer):
+        try:
+            command_buffer.send_pending_requests()
+        except ConnectionError as e:
+            # If something was sent before, we can't do anything at which
+            # point we just reraise the underlying error.
+            if command_buffer.sent_something:
+                raise
+            self._release_command_buffer(command_buffer)
+            # If we cannot reconnect, reraise the error.
+            if not command_buffer.reconnect():
+                raise e
+            self._cb_poll.register(command_buffer.host_id, command_buffer)
 
     # Custom Public API
 
@@ -370,7 +397,7 @@ class MappingClient(RoutingBaseClient):
                         raise ConnectionError('Error while trying to write '
                                               'requests to redis.')
                     if event == 'write':
-                        command_buffer.send_pending_requests()
+                        self._send_or_reconnect(command_buffer)
 
                 # The general assumption is that all response is available
                 # or this might block.  On reading we do not use async
