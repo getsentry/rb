@@ -68,7 +68,7 @@ def merge_batch(command_name, arg_promise_tuples):
 
     if len(arg_promise_tuples) == 1:
         args, promise = arg_promise_tuples[0]
-        return command_name, args, promise
+        return command_name, args, {}, promise
 
     promise = Promise()
 
@@ -85,7 +85,7 @@ def merge_batch(command_name, arg_promise_tuples):
     for individual_args, _ in arg_promise_tuples:
         args.extend(individual_args)
 
-    return batch_command, args, promise
+    return batch_command, args, {}, promise
 
 
 def auto_batch_commands(commands):
@@ -94,15 +94,16 @@ def auto_batch_commands(commands):
     """
     pending_batch = None
 
-    for command_name, args, promise in commands:
+    for command_name, args, options, promise in commands:
         # This command cannot be batched, return it as such.
         if command_name not in AUTO_BATCH_COMMANDS:
             if pending_batch:
                 yield merge_batch(*pending_batch)
                 pending_batch = None
-            yield command_name, args, promise
+            yield command_name, args, options, promise
             continue
 
+        assert not options, 'batch commands cannot merge options'
         if pending_batch and pending_batch[0] == command_name:
             pending_batch[1].append((args, promise))
         else:
@@ -141,11 +142,11 @@ class CommandBuffer(object):
         assert_open(self)
         return self.connection._sock.fileno()
 
-    def enqueue_command(self, command_name, args):
+    def enqueue_command(self, command_name, args, options):
         """Enqueue a new command into this pipeline."""
         assert_open(self)
         promise = Promise()
-        self.commands.append((command_name, args, promise))
+        self.commands.append((command_name, args, options, promise))
         return promise
 
     @property
@@ -171,9 +172,9 @@ class CommandBuffer(object):
                 unsent_commands = auto_batch_commands(unsent_commands)
 
             buf = []
-            for command_name, args, promise in unsent_commands:
+            for command_name, args, options, promise in unsent_commands:
                 buf.append((command_name,) + tuple(args))
-                self.pending_responses.append((command_name, promise))
+                self.pending_responses.append((command_name, options, promise))
 
             cmds = self.connection.pack_commands(buf)
             self._send_buf.extend(cmds)
@@ -203,9 +204,9 @@ class CommandBuffer(object):
 
         pending = self.pending_responses
         self.pending_responses = []
-        for command_name, promise in pending:
+        for command_name, options, promise in pending:
             value = client.parse_response(
-                self.connection, command_name)
+                self.connection, command_name, **options)
             promise.resolve(value)
 
 
@@ -299,11 +300,11 @@ class MappingClient(RoutingBaseClient):
 
     # Standard redis methods
 
-    def execute_command(self, *args):
+    def execute_command(self, *args, **options):
         router = self.connection_pool.cluster.get_router()
         host_id = router.get_host_for_command(args[0], args[1:])
         buf = self._get_command_buffer(host_id, args[0])
-        return buf.enqueue_command(args[0], args[1:])
+        return buf.enqueue_command(args[0], args[1:], options)
 
     # Custom Internal API
 
@@ -419,7 +420,7 @@ class FanoutClient(MappingClient):
         rv.__resolve_singular_result = True
         return rv
 
-    def execute_command(self, *args):
+    def execute_command(self, *args, **options):
         promises = {}
 
         hosts = self._target_hosts
@@ -430,7 +431,7 @@ class FanoutClient(MappingClient):
 
         for host_id in hosts:
             buf = self._get_command_buffer(host_id, args[0])
-            promise = buf.enqueue_command(args[0], args[1:])
+            promise = buf.enqueue_command(args[0], args[1:], options)
             if self.__resolve_singular_result and len(hosts) == 1:
                 return promise
             promises[host_id] = promise
