@@ -77,18 +77,35 @@ def test_basic_cluster_disabled_batch(cluster):
     assert ref_sum == sum(xrange(iterations))
 
 
+def make_zset_data(x):
+    return [(str(i), float(i)) for i in xrange(x, x + 10)]
+
+
 def test_simple_api(cluster):
     client = cluster.get_routing_client()
     with client.map() as map_client:
         for x in xrange(10):
-            map_client.set('key:%s' % x, x)
+            map_client.set('key:%d' % x, x)
+            map_client.zadd('zset:%d' % x, **dict(make_zset_data(x)))
 
     for x in xrange(10):
         assert client.get('key:%d' % x) == str(x)
+        assert client.zrange('zset:%d' % x, 0, -1, withscores=True) == make_zset_data(x)
+
+    results = []  # (promise, expected result)
+    with client.map() as map_client:
+        for x in xrange(10):
+            results.append((
+                map_client.zrange('zset:%d' % x, 0, -1, withscores=True),
+                make_zset_data(x),
+            ))
+
+    for promise, expectation in results:
+        assert promise.value == expectation
 
     with client.map() as map_client:
         for x in xrange(10):
-            map_client.delete('key:%s' % x)
+            map_client.delete('key:%d' % x)
 
     for x in xrange(10):
         assert client.get('key:%d' % x) is None
@@ -121,12 +138,15 @@ def test_fanout_api(cluster):
     for host_id in cluster.hosts:
         client = cluster.get_local_client(host_id)
         client.set('foo', str(host_id))
+        client.zadd('zset', **dict(make_zset_data(host_id)))
 
     with cluster.fanout(hosts='all') as client:
-        result = client.get('foo')
+        get_result = client.get('foo')
+        zrange_result = client.zrange('zset', 0, -1, withscores=True)
 
     for host_id in cluster.hosts:
-        assert result.value[host_id] == str(host_id)
+        assert get_result.value[host_id] == str(host_id)
+        assert zrange_result.value[host_id] == make_zset_data(host_id)
 
 
 def test_fanout_key_target(cluster):
