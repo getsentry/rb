@@ -14,7 +14,7 @@ from rb.router import BaseRouter, ConsistentHashingRouter, PartitionRouter, \
 from rb.promise import Promise
 
 
-__version__ = '1.4'
+__version__ = '1.5'
 
 __all__ = [
     # cluster
