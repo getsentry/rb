@@ -1,4 +1,7 @@
+import fcntl
+import array
 import select
+import termios
 
 
 class BasePoller(object):
@@ -155,6 +158,43 @@ class EpollPoller(BasePoller):
             if event & select.EPOLLHUP:
                 rv.append((obj, 'close'))
         return rv
+
+
+def _is_closed_select(f):
+    rlist, wlist, _ = select.select([f], [f], [], 0.0)
+    if not rlist and not wlist:
+        return False
+    buf = array.array('i', [0])
+    fcntl.ioctl(f.fileno(), termios.FIONREAD, buf)
+    return buf[0] == 0
+
+
+def _is_closed_poll(f):
+    poll = select.poll()
+    poll.register(f.fileno(), select.POLLHUP)
+    for _, event in poll.poll(0.0):
+        if event == 'close':
+            return True
+    return False
+
+
+def _is_closed_kqueue(f):
+    kqueue = select.kqueue()
+    event = select.kevent(
+        f.fileno(), filter=select.KQ_FILTER_READ,
+        flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE)
+    for event in kqueue.control([event], 128, 0.0):
+        if event.flags & select.KQ_EV_EOF:
+            return True
+    return False
+
+
+def is_closed(f):
+    if KQueuePoller.is_available:
+        return _is_closed_kqueue(f)
+    if PollPoller.is_available:
+        return _is_closed_poll(f)
+    return _is_closed_select(f)
 
 
 available_pollers = [poll for poll in [KQueuePoller, PollPoller,
