@@ -399,7 +399,7 @@ class MappingClient(RoutingBaseClient):
                 if command_buffer.has_pending_requests:
                     if event == 'close':
                         self._try_reconnect(command_buffer)
-                    if event == 'write':
+                    elif event == 'write':
                         self._send_or_reconnect(command_buffer)
 
                 # The general assumption is that all response is available
