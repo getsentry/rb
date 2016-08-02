@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from subprocess import Popen, PIPE
 
 from rb.cluster import Cluster
-
+from rb.utils import itervalues
 
 devnull = open(os.devnull, 'r+')
 
@@ -56,7 +56,7 @@ class TestSetup(object):
         self.server_executable = server_executable
         self.servers = []
 
-        for server in xrange(servers):
+        for server in range(servers):
             self.spawn_server()
 
     def __enter__(self):
@@ -73,7 +73,7 @@ class TestSetup(object):
         hosts = []
         host_id = 0
         for server in self.servers:
-            for x in xrange(self.databases_each):
+            for x in range(self.databases_each):
                 hosts.append({
                     'host_id': host_id,
                     'unix_socket_path': server.socket_path,
@@ -87,7 +87,7 @@ class TestSetup(object):
         socket_path = os.path.join(self._fd_dir, str(uuid.uuid4()))
         cl = Popen([self.server_executable, '-'], stdin=PIPE,
                    stdout=devnull)
-        cl.stdin.write('''
+        cl.stdin.write(('''
         port 0
         unixsocket %(path)s
         databases %(databases)d
@@ -95,7 +95,7 @@ class TestSetup(object):
         ''' % {
             'path': socket_path,
             'databases': self.databases_each,
-        })
+        }).encode('utf-8'))
         cl.stdin.flush()
         cl.stdin.close()
         self.servers.append(Server(cl, socket_path))
@@ -106,7 +106,7 @@ class TestSetup(object):
                                    for x in self.servers)
         now = time.time()
         while unconnected_servers:
-            for server in unconnected_servers.itervalues():
+            for server in itervalues(unconnected_servers):
                 if server.test_connection():
                     unconnected_servers.pop(server.socket_path, None)
                     break
