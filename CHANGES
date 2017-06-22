@@ -1,6 +1,28 @@
 Rb Changelog
 ============
 
+Version 1.7
+-----------
+
+(released Jun 23rd 2017)
+
+- Ensure a connection is released to the pool after receiving a response, even
+  if the result is an error.
+
+Version 1.6
+-----------
+
+(released Nov 23rd 2016)
+
+- Support `options` keyword arguments passed to `execute_command`.
+
+Version 1.5
+-----------
+
+(released Nov 23rd 2016)
+
+- Detect dead connections on pool checkout.
+
 Version 1.4
 -----------
 
