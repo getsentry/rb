@@ -2,7 +2,7 @@ import time
 import pytest
 
 from redis.client import Script
-
+from redis.exceptions import ResponseError
 from rb.cluster import Cluster
 from rb.router import UnroutableCommand
 from rb.promise import Promise
@@ -114,6 +114,37 @@ def test_simple_api(cluster):
 
     for x in range(10):
         assert client.get('key:%d' % x) is None
+
+
+def test_routing_client_releases_connection_on_error(cluster):
+    client = cluster.get_routing_client()
+    with pytest.raises(ResponseError):
+        client.sadd('key')
+
+    host = cluster.get_router().get_host_for_command('sadd', ['key'])
+    pool = cluster.get_pool_for_host(host)
+    assert len(pool._available_connections) == pool._created_connections
+
+
+def test_mapping_client_releases_connection_on_error(cluster):
+    client = cluster.get_routing_client().get_mapping_client()
+    client.sadd('key')
+    with pytest.raises(ResponseError):
+        client.join()
+
+    host = cluster.get_router().get_host_for_command('sadd', ['key'])
+    pool = cluster.get_pool_for_host(host)
+    assert len(pool._available_connections) == pool._created_connections
+
+
+def test_managed_mapping_client_releases_connection_on_error(cluster):
+    with pytest.raises(ResponseError):
+        with cluster.get_routing_client().map() as client:
+            client.sadd('key')
+
+    host = cluster.get_router().get_host_for_command('sadd', ['key'])
+    pool = cluster.get_pool_for_host(host)
+    assert len(pool._available_connections) == pool._created_connections
 
 
 def test_multi_keys_rejected(cluster):
