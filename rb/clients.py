@@ -408,8 +408,10 @@ class MappingClient(RoutingBaseClient):
                 # network is low and redis is super quick in sending.  It
                 # does not make a lot of sense to complicate things here.
                 elif event in ('read', 'close'):
-                    command_buffer.wait_for_responses(self)
-                    self._release_command_buffer(command_buffer)
+                    try:
+                        command_buffer.wait_for_responses(self)
+                    finally:
+                        self._release_command_buffer(command_buffer)
 
         if self._cb_poll and timeout is not None:
             raise TimeoutError('Did not receive all data in time.')
