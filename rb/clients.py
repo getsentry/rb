@@ -386,8 +386,11 @@ class MappingClient(RoutingBaseClient):
         to be hit.
         """
         remaining = timeout
+        failed = False
 
-        while self._cb_poll and (remaining is None or remaining > 0):
+        while (self._cb_poll and
+               (remaining is None or remaining > 0) and
+               not failed):
             now = time.time()
             rv = self._cb_poll.poll(remaining)
             if remaining is not None:
@@ -411,8 +414,15 @@ class MappingClient(RoutingBaseClient):
                 elif event in ('read', 'close'):
                     try:
                         command_buffer.wait_for_responses(self)
-                    finally:
-                        self._release_command_buffer(command_buffer)
+                    except Exception:
+                        failed = True
+                    self._release_command_buffer(command_buffer)
+
+        # If anything failed we want to cancel and release all command
+        # buffers
+        if failed:
+            self.cancel()
+            raise ConnectionError('Connection failure on join')
 
         if self._cb_poll and timeout is not None:
             raise TimeoutError('Did not receive all data in time.')
