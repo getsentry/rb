@@ -420,7 +420,10 @@ class MappingClient(RoutingBaseClient):
     def cancel(self):
         """Cancels all outstanding requests."""
         for command_buffer in self._cb_poll:
-            self._release_command_buffer(command_buffer)
+            try:
+                self._release_command_buffer(command_buffer)
+            except Exception:
+                pass
 
 
 class FanoutClient(MappingClient):
