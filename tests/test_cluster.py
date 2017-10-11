@@ -237,9 +237,17 @@ def test_batch_promise_all(cluster):
 
 
 def test_execute_commands(cluster):
-    TestScript = Script(None, 'return {KEYS, ARGV}')
+    TestScript = Script(
+        cluster.get_local_client(0),
+        'return {KEYS, ARGV}',
+    )
 
-    assert not TestScript.sha
+    # XXX: redis<2.10.6 didn't require that a ``Script`` be instantiated with a
+    # valid client as part of the constructor, which resulted in the SHA not
+    # actually being set until the script was executed. To ensure the legacy
+    # behavior still works, we manually unset the cached SHA before executing.
+    actual_script_hash = TestScript.sha
+    TestScript.sha = None
 
     results = cluster.execute_commands({
         'foo': [
@@ -254,7 +262,7 @@ def test_execute_commands(cluster):
         ],
     })
 
-    assert TestScript.sha
+    assert TestScript.sha == actual_script_hash
 
     assert results['foo'][0].value
     assert results['foo'][1].value == [['key'], ['value']]
