@@ -28,14 +28,14 @@ class BasePoller(object):
     def __iter__(self):
         # Make a copy when iterating so that modifications to this object
         # are possible while we're going over it.
-        return iter(self.objects.values())
+        return iter(list(self.objects.values()))
 
 
 class SelectPoller(BasePoller):
     is_available = hasattr(select, 'select')
 
     def poll(self, timeout=None):
-        objs = self.objects.values()
+        objs = list(self.objects.values())
         rlist, wlist, xlist = select.select(objs, objs, [], timeout)
         if xlist:
             raise RuntimeError('Got unexpected OOB data')

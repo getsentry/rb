@@ -6,7 +6,8 @@ from redis.client import Script
 from rb.cluster import Cluster
 from rb.router import UnroutableCommand
 from rb.promise import Promise
-from rb.utils import bytes_type
+from rb.utils import bytes_type, text_type
+import zlib
 
 
 def test_basic_interface():
@@ -118,7 +119,7 @@ def test_promise_api(cluster):
             client.set('key-%d' % x, x)
         for x in range(10):
             client.get('key-%d' % x).then(lambda x: results.append(int(x)))
-    assert sorted(results) == range(10)
+    assert sorted(results) == list(range(10))
 
 
 def test_fanout_api(cluster):
@@ -134,10 +135,12 @@ def test_fanout_api(cluster):
 
 
 def test_fanout_key_target(cluster):
+    # test bytes_type
     with cluster.fanout() as client:
         c = client.target_key('foo')
         c.set('foo', bytes_type(42))
         promise = c.get('foo')
+    print(promise.value)
     assert promise.value == '42'
 
     client = cluster.get_routing_client()
@@ -149,7 +152,7 @@ def test_fanout_targeting_api(cluster):
         client.target(hosts=[0, 1]).set('foo', 42)
         rv = client.target(hosts='all').get('foo')
 
-    assert rv.value.values().count('42') == 2
+    assert list(rv.value.values()).count('42') == 2
 
     # Without hosts this should fail
     with cluster.fanout() as client:
@@ -162,7 +165,7 @@ def test_emulated_batch_apis(cluster):
     assert promise.value is None
     with cluster.map() as map_client:
         promise = map_client.mget(['key:%s' % x for x in range(10)])
-    assert promise.value == map(bytes_type, range(10))
+    assert promise.value == list(map(bytes_type, list(range(10))))
 
 
 def test_batch_promise_all(cluster):
@@ -227,4 +230,4 @@ def test_reconnect(cluster):
             for x in range(10)
         ])
 
-    assert rv.value == list(map(bytes_type, range(10)))
+    assert rv.value == list(map(bytes_type, list(range(10))))

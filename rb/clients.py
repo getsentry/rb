@@ -40,7 +40,7 @@ def merge_batch(command_name, arg_promise_tuples):
     @promise.done
     def on_success(value):
         if list_response:
-            for item, (_, promise) in izip(value, arg_promise_tuples):
+            for item, (_, promise) in zip(value, arg_promise_tuples):
                 promise.resolve(item)
         else:
             for _, promise in arg_promise_tuples:
@@ -277,6 +277,7 @@ class RoutingPool(object):
 
 
 class BaseClient(StrictRedis):
+    # charset="utf-8", decode_responses=True
     pass
 
 
@@ -304,8 +305,7 @@ class MappingClient(RoutingBaseClient):
     For the parameters see :meth:`Cluster.map`.
     """
 
-    def __init__(self, connection_pool, max_concurrency=None,
-                 auto_batch=True):
+    def __init__(self, connection_pool, max_concurrency=None, auto_batch=True):
         RoutingBaseClient.__init__(self, connection_pool=connection_pool,
                                    auto_batch=auto_batch)
         # careful.  If you introduce any other variables here, then make
@@ -321,8 +321,7 @@ class MappingClient(RoutingBaseClient):
         return Promise.all([self.get(arg) for arg in args])
 
     def mset(self, *args, **kwargs):
-        return Promise.all([self.set(k, v) for k, v in dict(*args, **kwargs)
-                            .iteritems()]).then(lambda x: None)
+        return Promise.all([self.set(k, v) for k, v in dict(*args, **kwargs).items()]).then(lambda x: None)
 
     # Standard redis methods
 
@@ -469,7 +468,7 @@ class FanoutClient(MappingClient):
 
         hosts = self._target_hosts
         if hosts == 'all':
-            hosts = self.connection_pool.cluster.hosts.keys()
+            hosts = list(self.connection_pool.cluster.hosts.keys())
         elif hosts is None:
             raise RuntimeError('Fanout client was not targeted to hosts.')
 
@@ -490,8 +489,8 @@ class RoutingClient(RoutingBaseClient):
     """
 
     def __init__(self, cluster, auto_batch=True):
-        RoutingBaseClient.__init__(self, connection_pool=RoutingPool(cluster),
-                                   auto_batch=auto_batch)
+        RoutingBaseClient.__init__(self, connection_pool=RoutingPool(
+            cluster), auto_batch=auto_batch)
 
     # Standard redis methods
 
@@ -558,11 +557,10 @@ class RoutingClient(RoutingBaseClient):
             for key, promise in results.iteritems():
                 print '%s => %s' % (key, promise.value)
         """
-        return MapManager(self.get_mapping_client(max_concurrency, auto_batch),
+        return MapManager(self.get_mapping_client(max_concurrency, auto_batch,),
                           timeout=timeout)
 
-    def fanout(self, hosts=None, timeout=None, max_concurrency=64,
-               auto_batch=None):
+    def fanout(self, hosts=None, timeout=None, max_concurrency=64, auto_batch=None):
         """Returns a context manager for a map operation that fans out to
         manually specified hosts instead of using the routing system.  This
         can for instance be used to empty the database on all hosts.  The

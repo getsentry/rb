@@ -108,8 +108,8 @@ class ConsistentHashingRouter(BaseRouter):
 
     def __init__(self, cluster):
         BaseRouter.__init__(self, cluster)
-        self._host_id_id_map = dict(self.cluster.hosts.items())
-        self._hash = Ketama(self._host_id_id_map.values())
+        self._host_id_id_map = dict(list(self.cluster.hosts.items()))
+        self._hash = Ketama(list(self._host_id_id_map.values()))
         assert_gapless_hosts(self.cluster.hosts)
 
     def get_host_for_key(self, key):

@@ -88,12 +88,13 @@ class Cluster(object):
     """
 
     def __init__(self, hosts, host_defaults=None, pool_cls=None,
-                 pool_options=None, router_cls=None, router_options=None):
+                 pool_options={"encoding":"utf-8", "decode_responses":True}, router_cls=None, router_options=None):
         if pool_cls is None:
             pool_cls = ConnectionPool
         if router_cls is None:
             router_cls = PartitionRouter
         self._lock = Lock()
+        # {"charset":"utf-8", "decode_responses":True}
         self.pool_cls = pool_cls
         self.pool_options = pool_options
         self.router_cls = router_cls
@@ -350,7 +351,7 @@ class Cluster(object):
         # hosts.
         exists = {}
         with self.fanout(*args, **kwargs) as client:
-            for key, commands in mapping.items():
+            for key, commands in list(mapping.items()):
                 targeted = client.target_key(key)
                 for command in filter(is_script_command, commands):
                     script = command[0]
@@ -369,7 +370,7 @@ class Cluster(object):
         # do not already exist.
         results = {}
         with self.fanout(*args, **kwargs) as client:
-            for key, commands in mapping.items():
+            for key, commands in list(mapping.items()):
                 results[key] = []
                 targeted = client.target_key(key)
                 for command in commands:
