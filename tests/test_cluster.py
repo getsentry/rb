@@ -83,7 +83,10 @@ def test_basic_cluster_disabled_batch(cluster):
 
 
 def make_zset_data(x):
-    return [(str(i), float(i)) for i in range(x, x + 10)]
+    resp = {}
+    for i in range(x, x + 10):
+        resp.update({str(i): float(i)}) 
+    return resp
 
 
 def test_simple_api(cluster):
@@ -91,11 +94,11 @@ def test_simple_api(cluster):
     with client.map() as map_client:
         for x in range(10):
             map_client.set('key:%d' % x, x)
-            map_client.zadd('zset:%d' % x, **dict(make_zset_data(x)))
+            map_client.zadd('zset:%d' % x, mapping=make_zset_data(x))
 
     for x in range(10):
         assert client.get('key:%d' % x) == str(x)
-        assert client.zrange('zset:%d' % x, 0, -1, withscores=True) == make_zset_data(x)
+        assert dict((item_k, item_v) for item_k, item_v in client.zrange('zset:%d' % x, 0, -1, withscores=True)) == make_zset_data(x)
 
     results = []  # (promise, expected result)
     with client.map() as map_client:
@@ -106,7 +109,7 @@ def test_simple_api(cluster):
             ))
 
     for promise, expectation in results:
-        assert promise.value == expectation
+        assert dict((item_k, item_v) for item_k, item_v in promise.value) == expectation
 
     with client.map() as map_client:
         for x in range(10):
@@ -174,7 +177,7 @@ def test_fanout_api(cluster):
     for host_id in cluster.hosts:
         client = cluster.get_local_client(host_id)
         client.set('foo', str(host_id))
-        client.zadd('zset', **dict(make_zset_data(host_id)))
+        client.zadd('zset', mapping=make_zset_data(host_id))
 
     with cluster.fanout(hosts='all') as client:
         get_result = client.get('foo')
@@ -182,7 +185,7 @@ def test_fanout_api(cluster):
 
     for host_id in cluster.hosts:
         assert get_result.value[host_id] == str(host_id)
-        assert zrange_result.value[host_id] == make_zset_data(host_id)
+        assert dict((item_k, item_v) for item_k, item_v in zrange_result.value[host_id]) == make_zset_data(host_id)
 
 
 def test_fanout_key_target(cluster):

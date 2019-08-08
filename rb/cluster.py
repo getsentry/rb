@@ -358,7 +358,7 @@ class Cluster(object):
 
                     # Set the script hash if it hasn't already been set.
                     if not script.sha:
-                        script.sha = sha1(script.script).hexdigest()
+                        script.sha = sha1(script.script.encode()).hexdigest()
 
                     # Check if the script has been loaded on each host that it
                     # will be executed on.
