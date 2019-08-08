@@ -126,6 +126,9 @@ class PartitionRouter(BaseRouter):
 
     This router requires that the hosts are gapless which means that
     the IDs for N hosts range from 0 to N-1.
+
+    ``crc32`` returns different value in Python2 and Python3, for details
+    check this link: https://bugs.python.org/issue22341.
     """
 
     def __init__(self, cluster):
@@ -137,4 +140,10 @@ class PartitionRouter(BaseRouter):
             k = key.encode('utf-8')
         else:
             k = bytes_type(key)
-        return crc32(k) % len(self.cluster.hosts)
+        # Make sure return value same as in Python3
+        # return (crc32(k) & 0xffffffff) % len(self.cluster.hosts)
+
+        # Make sure return value same as in Python2
+        crc_res = crc32(k)
+        crc_res = (crc_res - ((crc_res & 0x80000000) <<1))
+        return crc_res % len(self.cluster.hosts)
