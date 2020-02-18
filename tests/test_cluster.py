@@ -1,3 +1,6 @@
+from builtins import map
+from builtins import str
+from builtins import range
 import time
 import pytest
 
@@ -82,13 +85,13 @@ def test_basic_cluster_disabled_batch(cluster):
 
 
 def make_zset_data(x):
-    return [(str(i), float(i)) for i in xrange(x, x + 10)]
+    return [(str(i), float(i)) for i in range(x, x + 10)]
 
 
 def test_simple_api(cluster):
     client = cluster.get_routing_client()
     with client.map() as map_client:
-        for x in xrange(10):
+        for x in range(10):
             map_client.set('key:%d' % x, x)
             map_client.zadd('zset:%d' % x, **dict(make_zset_data(x)))
 
@@ -98,7 +101,7 @@ def test_simple_api(cluster):
 
     results = []  # (promise, expected result)
     with client.map() as map_client:
-        for x in xrange(10):
+        for x in range(10):
             results.append((
                 map_client.zrange('zset:%d' % x, 0, -1, withscores=True),
                 make_zset_data(x),
@@ -108,7 +111,7 @@ def test_simple_api(cluster):
         assert promise.value == expectation
 
     with client.map() as map_client:
-        for x in xrange(10):
+        for x in range(10):
             map_client.delete('key:%d' % x)
 
     for x in range(10):
@@ -166,7 +169,7 @@ def test_promise_api(cluster):
             client.set('key-%d' % x, x)
         for x in range(10):
             client.get('key-%d' % x).then(lambda x: results.append(int(x)))
-    assert sorted(results) == range(10)
+    assert sorted(results) == list(range(10))
 
 
 def test_fanout_api(cluster):
@@ -200,7 +203,7 @@ def test_fanout_targeting_api(cluster):
         client.target(hosts=[0, 1]).set('foo', 42)
         rv = client.target(hosts='all').get('foo')
 
-    assert rv.value.values().count('42') == 2
+    assert list(rv.value.values()).count('42') == 2
 
     # Without hosts this should fail
     with cluster.fanout() as client:
@@ -213,7 +216,7 @@ def test_emulated_batch_apis(cluster):
     assert promise.value is None
     with cluster.map() as map_client:
         promise = map_client.mget(['key:%s' % x for x in range(10)])
-    assert promise.value == map(bytes_type, range(10))
+    assert promise.value == list(map(bytes_type, list(range(10))))
 
 
 def test_batch_promise_all(cluster):
@@ -286,4 +289,4 @@ def test_reconnect(cluster):
             for x in range(10)
         ])
 
-    assert rv.value == list(map(bytes_type, range(10)))
+    assert rv.value == list(map(bytes_type, list(range(10))))

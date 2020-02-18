@@ -1,3 +1,6 @@
+from builtins import str
+from builtins import range
+from builtins import object
 import os
 import time
 import uuid

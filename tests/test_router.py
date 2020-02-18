@@ -1,3 +1,4 @@
+from builtins import str
 import pytest
 
 from rb.cluster import Cluster

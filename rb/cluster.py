@@ -1,3 +1,5 @@
+from builtins import filter
+from builtins import object
 from redis.client import Script
 from redis.connection import ConnectionPool, UnixDomainSocketConnection
 try:
@@ -350,7 +352,7 @@ class Cluster(object):
         # hosts.
         exists = {}
         with self.fanout(*args, **kwargs) as client:
-            for key, commands in mapping.items():
+            for key, commands in list(mapping.items()):
                 targeted = client.target_key(key)
                 for command in filter(is_script_command, commands):
                     script = command[0]
@@ -369,7 +371,7 @@ class Cluster(object):
         # do not already exist.
         results = {}
         with self.fanout(*args, **kwargs) as client:
-            for key, commands in mapping.items():
+            for key, commands in list(mapping.items()):
                 results[key] = []
                 targeted = client.target_key(key)
                 for command in commands:

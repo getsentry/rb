@@ -1,3 +1,8 @@
+from __future__ import division
+from builtins import map
+from builtins import range
+from builtins import object
+from past.utils import old_div
 import hashlib
 import math
 
@@ -5,7 +10,7 @@ from bisect import bisect
 
 
 def md5_bytes(key):
-    return map(ord, hashlib.md5(key).digest())
+    return list(map(ord, hashlib.md5(key).digest()))
 
 
 class Ketama(object):
@@ -29,7 +34,7 @@ class Ketama(object):
         for node in self._nodes:
             weight = self._weights.get(node, 1)
 
-            ks = math.floor((40 * len(self._nodes) * weight) / total_weight)
+            ks = math.floor(old_div((40 * len(self._nodes) * weight), total_weight))
 
             for i in range(0, int(ks)):
                 k = md5_bytes('%s-%s-salt' % (node, i))

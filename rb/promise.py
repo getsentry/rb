@@ -1,3 +1,4 @@
+from builtins import object
 from functools import partial
 
 from rb.utils import iteritems

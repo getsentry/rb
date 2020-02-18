@@ -1,3 +1,5 @@
+from builtins import range
+from builtins import object
 import time
 import errno
 import socket
@@ -40,7 +42,7 @@ def merge_batch(command_name, arg_promise_tuples):
     @promise.done
     def on_success(value):
         if list_response:
-            for item, (_, promise) in izip(value, arg_promise_tuples):
+            for item, (_, promise) in zip(value, arg_promise_tuples):
                 promise.resolve(item)
         else:
             for _, promise in arg_promise_tuples:
@@ -322,8 +324,7 @@ class MappingClient(RoutingBaseClient):
         return Promise.all([self.get(arg) for arg in args])
 
     def mset(self, *args, **kwargs):
-        return Promise.all([self.set(k, v) for k, v in dict(*args, **kwargs)
-                            .iteritems()]).then(lambda x: None)
+        return Promise.all([self.set(k, v) for k, v in dict(*args, **kwargs).items()]).then(lambda x: None)
 
     # Standard redis methods
 
@@ -472,7 +473,7 @@ class FanoutClient(MappingClient):
 
         hosts = self._target_hosts
         if hosts == 'all':
-            hosts = self.connection_pool.cluster.hosts.keys()
+            hosts = list(self.connection_pool.cluster.hosts.keys())
         elif hosts is None:
             raise RuntimeError('Fanout client was not targeted to hosts.')
 

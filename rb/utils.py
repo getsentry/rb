@@ -5,7 +5,7 @@ import sys
 PY2 = sys.version_info[0] == 2
 
 if PY2:
-    integer_types = (int, long)
+    integer_types = (int, int)
 
     text_type = type(u'')
 
@@ -14,7 +14,7 @@ if PY2:
     _iteritems = 'iteritems'
     _itervalues = 'itervalues'
 
-    from itertools import izip
+    
 else:
     integer_types = (int,)
 
