@@ -20,7 +20,7 @@ setup(
     packages=['rb'],
     description='rb, the redis blaster',
     install_requires=[
-        'redis>=2.6',
+        'redis>=2.10.3,<2.10.6',
     ],
     classifiers=[
         'License :: OSI Approved :: Apache Software License',
