@@ -3,7 +3,6 @@ import errno
 import socket
 
 from weakref import ref as weakref
-from itertools import izip
 
 from redis import StrictRedis
 from redis.client import list_or_args
@@ -15,6 +14,7 @@ except ImportError:
 
 from rb.promise import Promise
 from rb.poll import poll, is_closed
+from rb.utils import izip
 
 
 AUTO_BATCH_COMMANDS = {
@@ -248,7 +248,7 @@ class RoutingPool(object):
         # very much possible that the connection is stale.  This is why we
         # check out up to 10 connections which are either not connected
         # yet or verified alive.
-        for _ in xrange(10):
+        for _ in range(10):
             con = real_pool.get_connection(command_name)
             if con._sock is None or not is_closed(con._sock):
                 con.__creating_pool = weakref(real_pool)

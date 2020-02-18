@@ -2,6 +2,7 @@ from weakref import ref as weakref
 from binascii import crc32
 
 from rb.ketama import Ketama
+from rb.utils import text_type, bytes_type
 from rb._rediscommands import COMMANDS
 
 
@@ -32,7 +33,7 @@ def extract_keys(args, key_spec):
 def assert_gapless_hosts(hosts):
     if not hosts:
         raise BadHostSetup('No hosts were configured.')
-    for x in xrange(len(hosts)):
+    for x in range(len(hosts)):
         if hosts.get(x) is None:
             raise BadHostSetup('Expected host with ID "%d" but no such '
                                'host was found.' % x)
@@ -132,8 +133,8 @@ class PartitionRouter(BaseRouter):
         assert_gapless_hosts(self.cluster.hosts)
 
     def get_host_for_key(self, key):
-        if isinstance(key, unicode):
+        if isinstance(key, text_type):
             k = key.encode('utf-8')
         else:
-            k = str(key)
+            k = bytes_type(key)
         return crc32(k) % len(self.cluster.hosts)
