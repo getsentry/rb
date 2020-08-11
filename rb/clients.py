@@ -3,7 +3,6 @@ import errno
 import socket
 
 from weakref import ref as weakref
-from itertools import izip
 
 from redis import StrictRedis
 from redis.client import list_or_args
@@ -15,6 +14,7 @@ except ImportError:
 
 from rb.promise import Promise
 from rb.poll import poll, is_closed
+from rb.utils import izip, iteritems
 
 
 AUTO_BATCH_COMMANDS = {
@@ -322,8 +322,7 @@ class MappingClient(RoutingBaseClient):
         return Promise.all([self.get(arg) for arg in args])
 
     def mset(self, *args, **kwargs):
-        return Promise.all([self.set(k, v) for k, v in dict(*args, **kwargs)
-                            .iteritems()]).then(lambda x: None)
+        return Promise.all([self.set(k, v) for k, v in iteritems(dict(*args, **kwargs))]).then(lambda x: None)
 
     # Standard redis methods
 
@@ -472,7 +471,7 @@ class FanoutClient(MappingClient):
 
         hosts = self._target_hosts
         if hosts == 'all':
-            hosts = self.connection_pool.cluster.hosts.keys()
+            hosts = list(self.connection_pool.cluster.hosts.keys())
         elif hosts is None:
             raise RuntimeError('Fanout client was not targeted to hosts.')
 

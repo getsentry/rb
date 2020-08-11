@@ -2,6 +2,7 @@ import pytest
 
 from rb import clients
 from rb.poll import available_pollers
+from rb.utils import text_type
 
 
 @pytest.mark.parametrize('poll', available_pollers,
@@ -15,4 +16,4 @@ def test_simple_api(cluster, poll, monkeypatch):
             map_client.set('key:%s' % x, x)
 
     for x in range(10):
-        assert client.get('key:%d' % x) == str(x)
+        assert client.get('key:%d' % x) == text_type(x)
