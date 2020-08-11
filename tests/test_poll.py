@@ -11,8 +11,8 @@ def test_simple_api(cluster, poll, monkeypatch):
 
     client = cluster.get_routing_client()
     with client.map() as map_client:
-        for x in xrange(10):
+        for x in range(10):
             map_client.set('key:%s' % x, x)
 
-    for x in xrange(10):
+    for x in range(10):
         assert client.get('key:%d' % x) == str(x)
