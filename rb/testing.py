@@ -87,7 +87,7 @@ class TestSetup(object):
         socket_path = os.path.join(self._fd_dir, str(uuid.uuid4()))
         cl = Popen([self.server_executable, '-'], stdin=PIPE,
                    stdout=devnull)
-        cl.stdin.write('''
+        cl.stdin.write(('''
         port 0
         unixsocket %(path)s
         databases %(databases)d
@@ -95,7 +95,7 @@ class TestSetup(object):
         ''' % {
             'path': socket_path,
             'databases': self.databases_each,
-        })
+        }).encode('utf-8'))
         cl.stdin.flush()
         cl.stdin.close()
         self.servers.append(Server(cl, socket_path))
