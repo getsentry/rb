@@ -14,6 +14,7 @@ def test_basic_interface():
     cluster = Cluster(
         {0: {"db": 0}, 1: {"db": 2}, 2: {"db": 4, "host": "127.0.0.1"},},
         host_defaults={"password": "pass",},
+        pool_options={"encoding": "utf-8", "decode_responses": True},
     )
 
     assert len(cluster.hosts) == 3
@@ -38,7 +39,9 @@ def test_basic_interface():
 
 
 def test_router_access():
-    cluster = Cluster({0: {"db": 0},})
+    cluster = Cluster(
+        {0: {"db": 0},}, pool_options={"encoding": "utf-8", "decode_responses": True}
+    )
 
     router = cluster.get_router()
     assert router.cluster is cluster
@@ -164,7 +167,7 @@ def test_promise_api(cluster):
             client.set("key-%d" % x, x)
         for x in range(10):
             client.get("key-%d" % x).then(lambda x: results.append(int(x)))
-    assert sorted(results) == range(10)
+    assert sorted(results) == list(range(10))
 
 
 def test_fanout_api(cluster):
@@ -198,7 +201,7 @@ def test_fanout_targeting_api(cluster):
         client.target(hosts=[0, 1]).set("foo", 42)
         rv = client.target(hosts="all").get("foo")
 
-    assert rv.value.values().count("42") == 2
+    assert list(rv.value.values()).count("42") == 2
 
     # Without hosts this should fail
     with cluster.fanout() as client:
@@ -211,7 +214,7 @@ def test_emulated_batch_apis(cluster):
     assert promise.value is None
     with cluster.map() as map_client:
         promise = map_client.mget(["key:%s" % x for x in range(10)])
-    assert promise.value == map(text_type, range(10))
+    assert promise.value == list(map(text_type, range(10)))
 
 
 def test_batch_promise_all(cluster):

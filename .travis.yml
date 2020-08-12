@@ -1,19 +1,25 @@
 language: python
+dist: xenial
+os: linux
 
-sudo: false
-
-matrix:
+jobs:
   include:
-    - os: linux
-      python: 2.7
-    - os: linux
-      python: pypy
+    - python: 2.7
+    - python: pypy
+    - python: 3.6
+    - python: pypy3
     - os: osx
       language: generic
       env:
       - PYTHON_VERSION=2.7.10
       - PYENV_ROOT=~/.pyenv
       - PATH=$PYENV_ROOT/shims:$PATH:$PYENV_ROOT/bin:$PYENV_ROOT/versions/2.7.10/bin
+    - os: osx
+      language: generic
+      env:
+      - PYTHON_VERSION=3.6.10
+      - PYENV_ROOT=~/.pyenv
+      - PATH=$PYENV_ROOT/shims:$PATH:$PYENV_ROOT/bin:$PYENV_ROOT/versions/3.6.10/bin
 
 install:
   - bash .travis-${TRAVIS_OS_NAME}.sh
