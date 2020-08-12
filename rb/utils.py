@@ -1,10 +1,6 @@
 from __future__ import absolute_import
 
-import sys
-
-PY2 = sys.version_info[0] == 2
-
-if PY2:
+try:
     integer_types = (int, long)
     text_type = unicode
     bytes_type = str
@@ -15,7 +11,7 @@ if PY2:
     from itertools import izip
 
     from binascii import crc32
-else:
+except NameError:
     integer_types = (int,)
     text_type = str
     bytes_type = bytes
