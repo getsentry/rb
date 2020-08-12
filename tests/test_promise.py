@@ -10,7 +10,7 @@ def test_resolved_promise():
 
 
 def test_rejected_promise():
-    err = RuntimeError('So fail')
+    err = RuntimeError("So fail")
     p = Promise.rejected(err)
     assert not p.is_resolved
     assert not p.is_pending
@@ -71,29 +71,23 @@ def test_promise_all():
     assert p.is_resolved
     assert p.value == {}
 
-    p = Promise.all([
-        Promise.resolved(1),
-        Promise.resolved(2),
-        Promise.resolved(3),
-    ])
+    p = Promise.all([Promise.resolved(1), Promise.resolved(2), Promise.resolved(3),])
 
     assert p.is_resolved
     assert p.value == [1, 2, 3]
 
-    p = Promise.all({
-        'key1': Promise.resolved(1),
-        'key2': Promise.resolved(2),
-        'key3': Promise.resolved(3),
-    })
+    p = Promise.all(
+        {
+            "key1": Promise.resolved(1),
+            "key2": Promise.resolved(2),
+            "key3": Promise.resolved(3),
+        }
+    )
 
     assert p.is_resolved
-    assert p.value == {'key1': 1, 'key2': 2, 'key3': 3}
+    assert p.value == {"key1": 1, "key2": 2, "key3": 3}
 
-    p = Promise.all([
-        Promise.resolved(1),
-        Promise.rejected(2),
-        Promise.resolved(3),
-    ])
+    p = Promise.all([Promise.resolved(1), Promise.rejected(2), Promise.resolved(3),])
     assert p.is_rejected
     assert p.reason == 2
 

@@ -7,6 +7,7 @@ from weakref import ref as weakref
 from redis import StrictRedis
 from redis.client import list_or_args
 from redis.exceptions import ConnectionError
+
 try:
     from redis.exceptions import TimeoutError
 except ImportError:
@@ -18,14 +19,14 @@ from rb.utils import izip, iteritems
 
 
 AUTO_BATCH_COMMANDS = {
-    'GET': ('MGET', True),
-    'SET': ('MSET', False),
+    "GET": ("MGET", True),
+    "SET": ("MSET", False),
 }
 
 
 def assert_open(client):
     if client.closed:
-        raise ValueError('I/O operation on closed file')
+        raise ValueError("I/O operation on closed file")
 
 
 def merge_batch(command_name, arg_promise_tuples):
@@ -68,7 +69,7 @@ def auto_batch_commands(commands):
             yield command_name, args, options, promise
             continue
 
-        assert not options, 'batch commands cannot merge options'
+        assert not options, "batch commands cannot merge options"
         if pending_batch and pending_batch[0] == command_name:
             pending_batch[1].append((args, promise))
         else:
@@ -110,8 +111,9 @@ class CommandBuffer(object):
 
     def reconnect(self):
         if self.sent_something:
-            raise RuntimeError('Cannot reset command buffer that already '
-                               'sent out data.')
+            raise RuntimeError(
+                "Cannot reset command buffer that already " "sent out data."
+            )
         if self.reconnects > 5:
             return False
         self.reconnects += 1
@@ -164,7 +166,7 @@ class CommandBuffer(object):
                         self.sent_something = True
                         break
                     if sent < len(item):
-                        buf[:idx + 1] = [item[sent:]]
+                        buf[: idx + 1] = [item[sent:]]
                         break
                 else:
                     del buf[:]
@@ -173,10 +175,10 @@ class CommandBuffer(object):
         except IOError as e:
             self.connection.disconnect()
             if isinstance(e, socket.timeout):
-                raise TimeoutError('Timeout writing to socket (host %s)'
-                                   % self.host_id)
-            raise ConnectionError('Error while writing to socket (host %s): %s'
-                                  % (self.host_id, e))
+                raise TimeoutError("Timeout writing to socket (host %s)" % self.host_id)
+            raise ConnectionError(
+                "Error while writing to socket (host %s): %s" % (self.host_id, e)
+            )
 
     def send_pending_requests(self):
         """Sends all pending requests into the connection.  The default is
@@ -214,16 +216,17 @@ class CommandBuffer(object):
         assert_open(self)
 
         if self.has_pending_requests:
-            raise RuntimeError('Cannot wait for responses if there are '
-                               'pending requests outstanding.  You need '
-                               'to wait for pending requests to be sent '
-                               'first.')
+            raise RuntimeError(
+                "Cannot wait for responses if there are "
+                "pending requests outstanding.  You need "
+                "to wait for pending requests to be sent "
+                "first."
+            )
 
         pending = self.pending_responses
         self.pending_responses = []
         for command_name, options, promise in pending:
-            value = client.parse_response(
-                self.connection, command_name, **options)
+            value = client.parse_response(self.connection, command_name, **options)
             promise.resolve(value)
 
 
@@ -239,8 +242,7 @@ class RoutingPool(object):
     def get_connection(self, command_name, shard_hint=None):
         host_id = shard_hint
         if host_id is None:
-            raise RuntimeError('The routing pool requires the host id '
-                               'as shard hint')
+            raise RuntimeError("The routing pool requires the host id " "as shard hint")
 
         real_pool = self.cluster.get_pool_for_host(host_id)
 
@@ -254,8 +256,9 @@ class RoutingPool(object):
                 con.__creating_pool = weakref(real_pool)
                 return con
 
-        raise ConnectionError('Failed to check out a valid connection '
-                              '(host %s)' % host_id)
+        raise ConnectionError(
+            "Failed to check out a valid connection " "(host %s)" % host_id
+        )
 
     def release(self, connection):
         # The real pool is referenced by the connection through an
@@ -282,20 +285,20 @@ class BaseClient(StrictRedis):
 
 
 class RoutingBaseClient(BaseClient):
-
     def __init__(self, connection_pool, auto_batch=True):
         BaseClient.__init__(self, connection_pool=connection_pool)
         self.auto_batch = auto_batch
 
     def pubsub(self, **kwargs):
-        raise NotImplementedError('Pubsub is unsupported.')
+        raise NotImplementedError("Pubsub is unsupported.")
 
     def pipeline(self, transaction=True, shard_hint=None):
-        raise NotImplementedError('Manual pipelines are unsupported. rb '
-                                  'automatically pipelines commands.')
+        raise NotImplementedError(
+            "Manual pipelines are unsupported. rb " "automatically pipelines commands."
+        )
 
     def lock(self, *args, **kwargs):
-        raise NotImplementedError('Locking is not supported.')
+        raise NotImplementedError("Locking is not supported.")
 
 
 class MappingClient(RoutingBaseClient):
@@ -305,10 +308,10 @@ class MappingClient(RoutingBaseClient):
     For the parameters see :meth:`Cluster.map`.
     """
 
-    def __init__(self, connection_pool, max_concurrency=None,
-                 auto_batch=True):
-        RoutingBaseClient.__init__(self, connection_pool=connection_pool,
-                                   auto_batch=auto_batch)
+    def __init__(self, connection_pool, max_concurrency=None, auto_batch=True):
+        RoutingBaseClient.__init__(
+            self, connection_pool=connection_pool, auto_batch=auto_batch
+        )
         # careful.  If you introduce any other variables here, then make
         # sure that FanoutClient.target still works correctly!
         self._max_concurrency = max_concurrency
@@ -322,7 +325,9 @@ class MappingClient(RoutingBaseClient):
         return Promise.all([self.get(arg) for arg in args])
 
     def mset(self, *args, **kwargs):
-        return Promise.all([self.set(k, v) for k, v in iteritems(dict(*args, **kwargs))]).then(lambda x: None)
+        return Promise.all(
+            [self.set(k, v) for k, v in iteritems(dict(*args, **kwargs))]
+        ).then(lambda x: None)
 
     # Standard redis methods
 
@@ -345,8 +350,8 @@ class MappingClient(RoutingBaseClient):
                 self.join(timeout=1.0)
 
         def connect():
-            return self.connection_pool.get_connection(
-                command_name, shard_hint=host_id)
+            return self.connection_pool.get_connection(command_name, shard_hint=host_id)
+
         buf = CommandBuffer(host_id, connect, self.auto_batch)
         self._cb_poll.register(host_id, buf)
         return buf
@@ -370,12 +375,13 @@ class MappingClient(RoutingBaseClient):
         # If something was sent before, we can't do anything at which
         # point we just reraise the underlying error.
         if command_buffer.sent_something:
-            raise err or ConnectionError('Cannot reconnect when data was '
-                                         'already sent.')
+            raise err or ConnectionError(
+                "Cannot reconnect when data was " "already sent."
+            )
         self._release_command_buffer(command_buffer)
         # If we cannot reconnect, reraise the error.
         if not command_buffer.reconnect():
-            raise err or ConnectionError('Too many attempts to reconnect.')
+            raise err or ConnectionError("Too many attempts to reconnect.")
         self._cb_poll.register(command_buffer.host_id, command_buffer)
 
     # Custom Public API
@@ -390,16 +396,16 @@ class MappingClient(RoutingBaseClient):
             now = time.time()
             rv = self._cb_poll.poll(remaining)
             if remaining is not None:
-                remaining -= (time.time() - now)
+                remaining -= time.time() - now
 
             for command_buffer, event in rv:
                 # This command buffer still has pending requests which
                 # means we have to send them out first before we can read
                 # all the data from it.
                 if command_buffer.has_pending_requests:
-                    if event == 'close':
+                    if event == "close":
                         self._try_reconnect(command_buffer)
-                    elif event == 'write':
+                    elif event == "write":
                         self._send_or_reconnect(command_buffer)
 
                 # The general assumption is that all response is available
@@ -407,14 +413,14 @@ class MappingClient(RoutingBaseClient):
                 # receiving.  This generally works because latency in the
                 # network is low and redis is super quick in sending.  It
                 # does not make a lot of sense to complicate things here.
-                elif event in ('read', 'close'):
+                elif event in ("read", "close"):
                     try:
                         command_buffer.wait_for_responses(self)
                     finally:
                         self._release_command_buffer(command_buffer)
 
         if self._cb_poll and timeout is not None:
-            raise TimeoutError('Did not receive all data in time.')
+            raise TimeoutError("Did not receive all data in time.")
 
     def cancel(self):
         """Cancels all outstanding requests."""
@@ -432,10 +438,10 @@ class FanoutClient(MappingClient):
     For the parameters see :meth:`Cluster.fanout`.
     """
 
-    def __init__(self, hosts, connection_pool, max_concurrency=None,
-                 auto_batch=True):
-        MappingClient.__init__(self, connection_pool, max_concurrency,
-                               auto_batch=auto_batch)
+    def __init__(self, hosts, connection_pool, max_concurrency=None, auto_batch=True):
+        MappingClient.__init__(
+            self, connection_pool, max_concurrency, auto_batch=auto_batch
+        )
         self._target_hosts = hosts
         self.__is_retargeted = False
         self.__resolve_singular_result = False
@@ -445,9 +451,12 @@ class FanoutClient(MappingClient):
         when having to deal with a subset of hosts for one call.
         """
         if self.__is_retargeted:
-            raise TypeError('Cannot use target more than once.')
-        rv = FanoutClient(hosts, connection_pool=self.connection_pool,
-                          max_concurrency=self._max_concurrency)
+            raise TypeError("Cannot use target more than once.")
+        rv = FanoutClient(
+            hosts,
+            connection_pool=self.connection_pool,
+            max_concurrency=self._max_concurrency,
+        )
         rv._cb_poll = self._cb_poll
         rv.__is_retargeted = True
         return rv
@@ -470,10 +479,10 @@ class FanoutClient(MappingClient):
         promises = {}
 
         hosts = self._target_hosts
-        if hosts == 'all':
+        if hosts == "all":
             hosts = list(self.connection_pool.cluster.hosts.keys())
         elif hosts is None:
-            raise RuntimeError('Fanout client was not targeted to hosts.')
+            raise RuntimeError("Fanout client was not targeted to hosts.")
 
         for host_id in hosts:
             buf = self._get_command_buffer(host_id, args[0])
@@ -492,8 +501,9 @@ class RoutingClient(RoutingBaseClient):
     """
 
     def __init__(self, cluster, auto_batch=True):
-        RoutingBaseClient.__init__(self, connection_pool=RoutingPool(cluster),
-                                   auto_batch=auto_batch)
+        RoutingBaseClient.__init__(
+            self, connection_pool=RoutingPool(cluster), auto_batch=auto_batch
+        )
 
     # Standard redis methods
 
@@ -529,21 +539,25 @@ class RoutingClient(RoutingBaseClient):
         """
         if auto_batch is None:
             auto_batch = self.auto_batch
-        return MappingClient(connection_pool=self.connection_pool,
-                             max_concurrency=max_concurrency,
-                             auto_batch=auto_batch)
+        return MappingClient(
+            connection_pool=self.connection_pool,
+            max_concurrency=max_concurrency,
+            auto_batch=auto_batch,
+        )
 
-    def get_fanout_client(self, hosts, max_concurrency=64,
-                          auto_batch=None):
+    def get_fanout_client(self, hosts, max_concurrency=64, auto_batch=None):
         """Returns a thread unsafe fanout client.
 
         Returns an instance of :class:`FanoutClient`.
         """
         if auto_batch is None:
             auto_batch = self.auto_batch
-        return FanoutClient(hosts, connection_pool=self.connection_pool,
-                            max_concurrency=max_concurrency,
-                            auto_batch=auto_batch)
+        return FanoutClient(
+            hosts,
+            connection_pool=self.connection_pool,
+            max_concurrency=max_concurrency,
+            auto_batch=auto_batch,
+        )
 
     def map(self, timeout=None, max_concurrency=64, auto_batch=None):
         """Returns a context manager for a map operation.  This runs
@@ -560,11 +574,11 @@ class RoutingClient(RoutingBaseClient):
             for key, promise in results.iteritems():
                 print '%s => %s' % (key, promise.value)
         """
-        return MapManager(self.get_mapping_client(max_concurrency, auto_batch),
-                          timeout=timeout)
+        return MapManager(
+            self.get_mapping_client(max_concurrency, auto_batch), timeout=timeout
+        )
 
-    def fanout(self, hosts=None, timeout=None, max_concurrency=64,
-               auto_batch=None):
+    def fanout(self, hosts=None, timeout=None, max_concurrency=64, auto_batch=None):
         """Returns a context manager for a map operation that fans out to
         manually specified hosts instead of using the routing system.  This
         can for instance be used to empty the database on all hosts.  The
@@ -585,9 +599,9 @@ class RoutingClient(RoutingBaseClient):
         a lot of damage when keys are written to hosts that do not expect
         them.
         """
-        return MapManager(self.get_fanout_client(hosts, max_concurrency,
-                                                 auto_batch),
-                          timeout=timeout)
+        return MapManager(
+            self.get_fanout_client(hosts, max_concurrency, auto_batch), timeout=timeout
+        )
 
 
 class LocalClient(BaseClient):
@@ -597,9 +611,8 @@ class LocalClient(BaseClient):
 
     def __init__(self, connection_pool=None, **kwargs):
         if connection_pool is None:
-            raise TypeError('The local client needs a connection pool')
-        BaseClient.__init__(self, connection_pool=connection_pool,
-                            **kwargs)
+            raise TypeError("The local client needs a connection pool")
+        BaseClient.__init__(self, connection_pool=connection_pool, **kwargs)
 
 
 class MapManager(object):

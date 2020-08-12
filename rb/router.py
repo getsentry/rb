@@ -31,11 +31,12 @@ def extract_keys(args, key_spec):
 
 def assert_gapless_hosts(hosts):
     if not hosts:
-        raise BadHostSetup('No hosts were configured.')
+        raise BadHostSetup("No hosts were configured.")
     for x in range(len(hosts)):
         if hosts.get(x) is None:
-            raise BadHostSetup('Expected host with ID "%d" but no such '
-                               'host was found.' % x)
+            raise BadHostSetup(
+                'Expected host with ID "%d" but no such ' "host was found." % x
+            )
 
 
 class BaseRouter(object):
@@ -54,7 +55,7 @@ class BaseRouter(object):
         """Reference back to the :class:`Cluster` this router belongs to."""
         rv = self._cluster()
         if rv is None:
-            raise RuntimeError('Cluster went away')
+            raise RuntimeError("Cluster went away")
         return rv
 
     def get_key(self, command, args):
@@ -62,27 +63,33 @@ class BaseRouter(object):
         spec = COMMANDS.get(command.upper())
 
         if spec is None:
-            raise UnroutableCommand('The command "%r" is unknown to the '
-                                    'router and cannot be handled as a '
-                                    'result.' % command)
+            raise UnroutableCommand(
+                'The command "%r" is unknown to the '
+                "router and cannot be handled as a "
+                "result." % command
+            )
 
-        if 'movablekeys' in spec['flags']:
-            raise UnroutableCommand('The keys for "%r" are movable and '
-                                    'as such cannot be routed to a single '
-                                    'host.')
+        if "movablekeys" in spec["flags"]:
+            raise UnroutableCommand(
+                'The keys for "%r" are movable and '
+                "as such cannot be routed to a single "
+                "host."
+            )
 
-        keys = extract_keys(args, spec['key_spec'])
+        keys = extract_keys(args, spec["key_spec"])
         if len(keys) == 1:
             return keys[0]
         elif not keys:
             raise UnroutableCommand(
                 'The command "%r" does not operate on a key which means '
-                'that no suitable host could be determined.  Consider '
-                'using a fanout instead.')
+                "that no suitable host could be determined.  Consider "
+                "using a fanout instead."
+            )
 
         raise UnroutableCommand(
             'The command "%r" operates on multiple keys (%d passed) which is '
-            'something that is not supported.' % (command, len(keys)))
+            "something that is not supported." % (command, len(keys))
+        )
 
     def get_host_for_command(self, command, args):
         """Returns the host this command should be executed against."""
@@ -114,8 +121,7 @@ class ConsistentHashingRouter(BaseRouter):
     def get_host_for_key(self, key):
         rv = self._hash.get_node(key)
         if rv is None:
-            raise UnroutableCommand('Did not find a suitable '
-                                    'host for the key.')
+            raise UnroutableCommand("Did not find a suitable " "host for the key.")
         return rv
 
 
@@ -133,9 +139,9 @@ class PartitionRouter(BaseRouter):
 
     def get_host_for_key(self, key):
         if isinstance(key, text_type):
-            k = key.encode('utf-8')
+            k = key.encode("utf-8")
         elif isinstance(key, integer_types):
-            k = text_type(key).encode('utf-8')
+            k = text_type(key).encode("utf-8")
         else:
             k = bytes_type(key)
         return crc32(k) % len(self.cluster.hosts)

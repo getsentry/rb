@@ -32,18 +32,18 @@ class BasePoller(object):
 
 
 class SelectPoller(BasePoller):
-    is_available = hasattr(select, 'select')
+    is_available = hasattr(select, "select")
 
     def poll(self, timeout=None):
         objs = list(self.objects.values())
         rlist, wlist, xlist = select.select(objs, objs, [], timeout)
         if xlist:
-            raise RuntimeError('Got unexpected OOB data')
-        return [(x, 'read') for x in rlist] + [(x, 'write') for x in wlist]
+            raise RuntimeError("Got unexpected OOB data")
+        return [(x, "read") for x in rlist] + [(x, "write") for x in wlist]
 
 
 class PollPoller(BasePoller):
-    is_available = hasattr(select, 'poll')
+    is_available = hasattr(select, "poll")
 
     def __init__(self):
         BasePoller.__init__(self)
@@ -52,8 +52,9 @@ class PollPoller(BasePoller):
 
     def register(self, key, f):
         BasePoller.register(self, key, f)
-        self.pollobj.register(f.fileno(), select.POLLIN | select.POLLOUT |
-                              select.POLLHUP)
+        self.pollobj.register(
+            f.fileno(), select.POLLIN | select.POLLOUT | select.POLLHUP
+        )
         self.fd_to_object[f.fileno()] = f
 
     def unregister(self, key):
@@ -68,16 +69,16 @@ class PollPoller(BasePoller):
         for fd, event in self.pollobj.poll(timeout):
             obj = self.fd_to_object[fd]
             if event & select.POLLIN:
-                rv.append((obj, 'read'))
+                rv.append((obj, "read"))
             if event & select.POLLOUT:
-                rv.append((obj, 'write'))
+                rv.append((obj, "write"))
             if event & select.POLLHUP:
-                rv.append((obj, 'close'))
+                rv.append((obj, "close"))
         return rv
 
 
 class KQueuePoller(BasePoller):
-    is_available = hasattr(select, 'kqueue')
+    is_available = hasattr(select, "kqueue")
 
     def __init__(self):
         BasePoller.__init__(self)
@@ -88,12 +89,16 @@ class KQueuePoller(BasePoller):
     def register(self, key, f):
         BasePoller.register(self, key, f)
         r_event = select.kevent(
-            f.fileno(), filter=select.KQ_FILTER_READ,
-            flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE)
+            f.fileno(),
+            filter=select.KQ_FILTER_READ,
+            flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE,
+        )
         self.events.append(r_event)
         w_event = select.kevent(
-            f.fileno(), filter=select.KQ_FILTER_WRITE,
-            flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE)
+            f.fileno(),
+            filter=select.KQ_FILTER_WRITE,
+            flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE,
+        )
         self.events.append(w_event)
         self.event_to_object[f.fileno()] = f
 
@@ -116,16 +121,16 @@ class KQueuePoller(BasePoller):
                 # why
                 continue
             if ev.filter == select.KQ_FILTER_READ:
-                rv.append((obj, 'read'))
+                rv.append((obj, "read"))
             elif ev.filter == select.KQ_FILTER_WRITE:
-                rv.append((obj, 'write'))
+                rv.append((obj, "write"))
             if ev.flags & select.KQ_EV_EOF:
-                rv.append((obj, 'close'))
+                rv.append((obj, "close"))
         return rv
 
 
 class EpollPoller(BasePoller):
-    is_available = hasattr(select, 'epoll')
+    is_available = hasattr(select, "epoll")
 
     def __init__(self):
         BasePoller.__init__(self)
@@ -134,8 +139,9 @@ class EpollPoller(BasePoller):
 
     def register(self, key, f):
         BasePoller.register(self, key, f)
-        self.epoll.register(f.fileno(), select.EPOLLIN | select.EPOLLHUP |
-                            select.EPOLLOUT)
+        self.epoll.register(
+            f.fileno(), select.EPOLLIN | select.EPOLLHUP | select.EPOLLOUT
+        )
         self.fd_to_object[f.fileno()] = f
 
     def unregister(self, key):
@@ -152,11 +158,11 @@ class EpollPoller(BasePoller):
         for fd, event in self.epoll.poll(timeout):
             obj = self.fd_to_object[fd]
             if event & select.EPOLLIN:
-                rv.append((obj, 'read'))
+                rv.append((obj, "read"))
             if event & select.EPOLLOUT:
-                rv.append((obj, 'write'))
+                rv.append((obj, "write"))
             if event & select.EPOLLHUP:
-                rv.append((obj, 'close'))
+                rv.append((obj, "close"))
         return rv
 
 
@@ -164,7 +170,7 @@ def _is_closed_select(f):
     rlist, wlist, _ = select.select([f], [f], [], 0.0)
     if not rlist and not wlist:
         return False
-    buf = array.array('i', [0])
+    buf = array.array("i", [0])
     fcntl.ioctl(f.fileno(), termios.FIONREAD, buf)
     return buf[0] == 0
 
@@ -173,7 +179,7 @@ def _is_closed_poll(f):
     poll = select.poll()
     poll.register(f.fileno(), select.POLLHUP)
     for _, event in poll.poll(0.0):
-        if event == 'close':
+        if event == "close":
             return True
     return False
 
@@ -181,8 +187,10 @@ def _is_closed_poll(f):
 def _is_closed_kqueue(f):
     kqueue = select.kqueue()
     event = select.kevent(
-        f.fileno(), filter=select.KQ_FILTER_READ,
-        flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE)
+        f.fileno(),
+        filter=select.KQ_FILTER_READ,
+        flags=select.KQ_EV_ADD | select.KQ_EV_ENABLE,
+    )
     for event in kqueue.control([event], 128, 0.0):
         if event.flags & select.KQ_EV_EOF:
             return True
@@ -197,7 +205,9 @@ def is_closed(f):
     return _is_closed_select(f)
 
 
-available_pollers = [poll for poll in [KQueuePoller, PollPoller,
-                                       EpollPoller, SelectPoller]
-                     if poll.is_available]
+available_pollers = [
+    poll
+    for poll in [KQueuePoller, PollPoller, EpollPoller, SelectPoller]
+    if poll.is_available
+]
 poll = available_pollers[0]

@@ -11,11 +11,10 @@ from subprocess import Popen, PIPE
 from rb.cluster import Cluster
 from rb.utils import itervalues
 
-devnull = open(os.devnull, 'r+')
+devnull = open(os.devnull, "r+")
 
 
 class Server(object):
-
     def __init__(self, cl, socket_path):
         self._cl = cl
         self.socket_path = socket_path
@@ -49,8 +48,7 @@ class TestSetup(object):
     a context manager to automatically terminate the clients.
     """
 
-    def __init__(self, servers=4, databases_each=8,
-                 server_executable='redis-server'):
+    def __init__(self, servers=4, databases_each=8, server_executable="redis-server"):
         self._fd_dir = tempfile.mkdtemp()
         self.databases_each = databases_each
         self.server_executable = server_executable
@@ -74,36 +72,38 @@ class TestSetup(object):
         host_id = 0
         for server in self.servers:
             for x in range(self.databases_each):
-                hosts.append({
-                    'host_id': host_id,
-                    'unix_socket_path': server.socket_path,
-                    'db': x,
-                })
+                hosts.append(
+                    {
+                        "host_id": host_id,
+                        "unix_socket_path": server.socket_path,
+                        "db": x,
+                    }
+                )
                 host_id += 1
         return Cluster(hosts)
 
     def spawn_server(self):
         """Spawns a new server and adds it to the pool."""
         socket_path = os.path.join(self._fd_dir, str(uuid.uuid4()))
-        cl = Popen([self.server_executable, '-'], stdin=PIPE,
-                   stdout=devnull)
-        cl.stdin.write(('''
+        cl = Popen([self.server_executable, "-"], stdin=PIPE, stdout=devnull)
+        cl.stdin.write(
+            (
+                """
         port 0
         unixsocket %(path)s
         databases %(databases)d
         save ""
-        ''' % {
-            'path': socket_path,
-            'databases': self.databases_each,
-        }).encode('utf-8'))
+        """
+                % {"path": socket_path, "databases": self.databases_each,}
+            ).encode("utf-8")
+        )
         cl.stdin.flush()
         cl.stdin.close()
         self.servers.append(Server(cl, socket_path))
 
     def wait_for_servers(self, timeout=10):
         """Waits for all servers to to be up and running."""
-        unconnected_servers = dict((x.socket_path, x)
-                                   for x in self.servers)
+        unconnected_servers = dict((x.socket_path, x) for x in self.servers)
         now = time.time()
         while unconnected_servers:
             for server in itervalues(unconnected_servers):
