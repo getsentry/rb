@@ -1,8 +1,7 @@
 from weakref import ref as weakref
-from binascii import crc32
 
 from rb.ketama import Ketama
-from rb.utils import text_type, bytes_type, integer_types
+from rb.utils import text_type, bytes_type, integer_types, crc32
 from rb._rediscommands import COMMANDS
 
 
