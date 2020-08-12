@@ -7,7 +7,9 @@ from rb.testing import make_test_cluster
 def cluster(request):
     mgr = make_test_cluster()
     cluster = mgr.__enter__()
+
     @request.addfinalizer
     def cleanup():
         mgr.__exit__(None, None, None)
+
     return cluster

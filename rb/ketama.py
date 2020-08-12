@@ -32,11 +32,15 @@ class Ketama(object):
             ks = math.floor((40 * len(self._nodes) * weight) / total_weight)
 
             for i in range(0, int(ks)):
-                k = md5_bytes('%s-%s-salt' % (node, i))
+                k = md5_bytes("%s-%s-salt" % (node, i))
 
                 for l in range(0, 4):
-                    key = ((k[3 + l * 4] << 24) | (k[2 + l * 4] << 16) |
-                           (k[1 + l * 4] << 8) | k[l * 4])
+                    key = (
+                        (k[3 + l * 4] << 24)
+                        | (k[2 + l * 4] << 16)
+                        | (k[1 + l * 4] << 8)
+                        | k[l * 4]
+                    )
                     self._hashring[key] = node
                     self._sorted_keys.append(key)
 

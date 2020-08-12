@@ -1,5 +1,6 @@
 from redis.client import Script
 from redis.connection import ConnectionPool, UnixDomainSocketConnection
+
 try:
     from redis.connection import SSLConnection
 except ImportError:
@@ -15,9 +16,17 @@ from rb.utils import integer_types, iteritems, itervalues
 
 
 class HostInfo(object):
-
-    def __init__(self, host_id, host, port, unix_socket_path=None, db=0,
-                 password=None, ssl=False, ssl_options=None):
+    def __init__(
+        self,
+        host_id,
+        host,
+        port,
+        unix_socket_path=None,
+        db=0,
+        password=None,
+        ssl=False,
+        ssl_options=None,
+    ):
         self.host_id = host_id
         self.host = host
         self.unix_socket_path = unix_socket_path
@@ -42,9 +51,9 @@ class HostInfo(object):
         return self.host_id
 
     def __repr__(self):
-        return '<%s %s>' % (
+        return "<%s %s>" % (
             self.__class__.__name__,
-            ' '.join('%s=%r' % x for x in sorted(self.__dict__.items())),
+            " ".join("%s=%r" % x for x in sorted(self.__dict__.items())),
         )
 
 
@@ -55,7 +64,7 @@ def _iter_hosts(iterable):
         if isinstance(item, tuple):
             host_id, cfg = item
             cfg = dict(cfg)
-            cfg['host_id'] = host_id
+            cfg["host_id"] = host_id
         else:
             cfg = item
         yield cfg
@@ -87,8 +96,15 @@ class Cluster(object):
     options are useful for setting socket timeouts and similar parameters.
     """
 
-    def __init__(self, hosts, host_defaults=None, pool_cls=None,
-                 pool_options=None, router_cls=None, router_options=None):
+    def __init__(
+        self,
+        hosts,
+        host_defaults=None,
+        pool_cls=None,
+        pool_options=None,
+        router_cls=None,
+        router_options=None,
+    ):
         if pool_cls is None:
             pool_cls = ConnectionPool
         if router_cls is None:
@@ -109,28 +125,40 @@ class Cluster(object):
                     host_config.setdefault(k, v)
             self.add_host(**host_config)
 
-    def add_host(self, host_id=None, host='localhost', port=6379,
-                 unix_socket_path=None, db=0, password=None,
-                 ssl=False, ssl_options=None):
+    def add_host(
+        self,
+        host_id=None,
+        host="localhost",
+        port=6379,
+        unix_socket_path=None,
+        db=0,
+        password=None,
+        ssl=False,
+        ssl_options=None,
+    ):
         """Adds a new host to the cluster.  This is only really useful for
         unittests as normally hosts are added through the constructor and
         changes after the cluster has been used for the first time are
         unlikely to make sense.
         """
         if host_id is None:
-            raise RuntimeError('Host ID is required')
+            raise RuntimeError("Host ID is required")
         elif not isinstance(host_id, integer_types):
-            raise ValueError('The host ID has to be an integer')
+            raise ValueError("The host ID has to be an integer")
         host_id = int(host_id)
         with self._lock:
             if host_id in self.hosts:
-                raise TypeError('Two hosts share the same host id (%r)' %
-                                (host_id,))
-            self.hosts[host_id] = HostInfo(host_id=host_id, host=host,
-                                           port=port, db=db,
-                                           unix_socket_path=unix_socket_path,
-                                           password=password, ssl=ssl,
-                                           ssl_options=ssl_options)
+                raise TypeError("Two hosts share the same host id (%r)" % (host_id,))
+            self.hosts[host_id] = HostInfo(
+                host_id=host_id,
+                host=host,
+                port=port,
+                db=db,
+                unix_socket_path=unix_socket_path,
+                password=password,
+                ssl=ssl,
+                ssl_options=ssl_options,
+            )
             self._hosts_age += 1
 
     def remove_host(self, host_id):
@@ -187,7 +215,7 @@ class Cluster(object):
         else:
             host_info = self.hosts.get(host_id)
             if host_info is None:
-                raise LookupError('Host %r does not exist' % (host_id,))
+                raise LookupError("Host %r does not exist" % (host_id,))
 
         rv = self._pools.get(host_id)
         if rv is not None:
@@ -196,24 +224,29 @@ class Cluster(object):
             rv = self._pools.get(host_id)
             if rv is None:
                 opts = dict(self.pool_options or ())
-                opts['db'] = host_info.db
-                opts['password'] = host_info.password
+                opts["db"] = host_info.db
+                opts["password"] = host_info.password
                 if host_info.unix_socket_path is not None:
-                    opts['path'] = host_info.unix_socket_path
-                    opts['connection_class'] = UnixDomainSocketConnection
+                    opts["path"] = host_info.unix_socket_path
+                    opts["connection_class"] = UnixDomainSocketConnection
                     if host_info.ssl:
-                        raise TypeError('SSL is not supported for unix '
-                                        'domain sockets.')
+                        raise TypeError(
+                            "SSL is not supported for unix " "domain sockets."
+                        )
                 else:
-                    opts['host'] = host_info.host
-                    opts['port'] = host_info.port
+                    opts["host"] = host_info.host
+                    opts["port"] = host_info.port
                     if host_info.ssl:
                         if SSLConnection is None:
-                            raise TypeError('This version of py-redis does '
-                                            'not support SSL connections.')
-                        opts['connection_class'] = SSLConnection
-                        opts.update(('ssl_' + k, v) for k, v in
-                                    iteritems(host_info.ssl_options or {}))
+                            raise TypeError(
+                                "This version of py-redis does "
+                                "not support SSL connections."
+                            )
+                        opts["connection_class"] = SSLConnection
+                        opts.update(
+                            ("ssl_" + k, v)
+                            for k, v in iteritems(host_info.ssl_options or {})
+                        )
                 rv = self.pool_cls(**opts)
                 self._pools[host_id] = rv
             return rv
@@ -223,8 +256,7 @@ class Cluster(object):
         works like a regular Python redis client and returns results
         immediately.
         """
-        return LocalClient(
-            connection_pool=self.get_pool_for_host(host_id))
+        return LocalClient(connection_pool=self.get_pool_for_host(host_id))
 
     def get_local_client_for_key(self, key):
         """Similar to :meth:`get_local_client_for_key` but returns the
@@ -267,10 +299,10 @@ class Cluster(object):
                 print '%s => %s' % (key, promise.value)
         """
         return self.get_routing_client(auto_batch).map(
-            timeout=timeout, max_concurrency=max_concurrency)
+            timeout=timeout, max_concurrency=max_concurrency
+        )
 
-    def fanout(self, hosts=None, timeout=None, max_concurrency=64,
-               auto_batch=True):
+    def fanout(self, hosts=None, timeout=None, max_concurrency=64, auto_batch=True):
         """Shortcut context manager for getting a routing client, beginning
         a fanout operation and joining over the result.
 
@@ -281,7 +313,8 @@ class Cluster(object):
                 client.flushdb()
         """
         return self.get_routing_client(auto_batch).fanout(
-            hosts=hosts, timeout=timeout, max_concurrency=max_concurrency)
+            hosts=hosts, timeout=timeout, max_concurrency=max_concurrency
+        )
 
     def all(self, timeout=None, max_concurrency=64, auto_batch=True):
         """Fanout to all hosts.  Works otherwise exactly like :meth:`fanout`.
@@ -291,9 +324,12 @@ class Cluster(object):
             with cluster.all() as client:
                 client.flushdb()
         """
-        return self.fanout('all', timeout=timeout,
-                           max_concurrency=max_concurrency,
-                           auto_batch=auto_batch)
+        return self.fanout(
+            "all",
+            timeout=timeout,
+            max_concurrency=max_concurrency,
+            auto_batch=auto_batch,
+        )
 
     def execute_commands(self, mapping, *args, **kwargs):
         """Concurrently executes a sequence of commands on a Redis cluster that
@@ -332,16 +368,15 @@ class Cluster(object):
 
         Internally, :class:`FanoutClient` is used for issuing commands.
         """
+
         def is_script_command(command):
             return isinstance(command[0], Script)
 
         def check_script_load_result(script, result):
             if script.sha != result:
                 raise AssertionError(
-                    'Hash mismatch loading {!r}: expected {!r}, got {!r}'.format(
-                        script,
-                        script.sha,
-                        result,
+                    "Hash mismatch loading {!r}: expected {!r}, got {!r}".format(
+                        script, script.sha, result,
                     )
                 )
 
@@ -363,7 +398,9 @@ class Cluster(object):
                     # will be executed on.
                     for host in targeted._target_hosts:
                         if script not in exists.setdefault(host, {}):
-                            exists[host][script] = targeted.execute_command('SCRIPT EXISTS', script.sha)
+                            exists[host][script] = targeted.execute_command(
+                                "SCRIPT EXISTS", script.sha
+                            )
 
         # Execute the pending commands, loading scripts onto servers where they
         # do not already exist.
@@ -381,12 +418,20 @@ class Cluster(object):
                             if script in exists[host]:
                                 result = exists[host].pop(script)
                                 if not result.value[0]:
-                                    targeted.execute_command('SCRIPT LOAD', script.script).done(
-                                        on_success=functools.partial(check_script_load_result, script)
+                                    targeted.execute_command(
+                                        "SCRIPT LOAD", script.script
+                                    ).done(
+                                        on_success=functools.partial(
+                                            check_script_load_result, script
+                                        )
                                     )
                         keys, arguments = command[1:]
                         parameters = list(keys) + list(arguments)
-                        results[key].append(targeted.execute_command('EVALSHA', script.sha, len(keys), *parameters))
+                        results[key].append(
+                            targeted.execute_command(
+                                "EVALSHA", script.sha, len(keys), *parameters
+                            )
+                        )
                     else:
                         results[key].append(targeted.execute_command(*command))
 

@@ -44,7 +44,7 @@ else:
     # match the python2 output of crc32.
     def crc32(*args):
         rt = _crc32(*args)
-        return rt - ((rt & 0x80000000) <<1)
+        return rt - ((rt & 0x80000000) << 1)
 
 
 def iteritems(d, **kw):
