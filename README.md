@@ -34,7 +34,7 @@ with cluster.map() as client:
     for key in range(100):
         client.get(key).then(lambda x: results.append(int(x or 0)))
 
-print 'Sum: %s' % sum(results)
+print('Sum: %s' % sum(results))
 ```
 
 Fanout:
