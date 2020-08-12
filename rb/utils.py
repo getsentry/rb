@@ -9,8 +9,11 @@ if PY2:
     text_type = unicode
     bytes_type = str
 
-    _iteritems = "iteritems"
-    _itervalues = "itervalues"
+    def iteritems(d, **kw):
+        return iter(d.iteritems(**kw))
+
+    def itervalues(d, **kw):
+        return iter(d.itervalues(**kw))
 
     from itertools import izip
 
@@ -22,8 +25,11 @@ else:
 
     izip = zip
 
-    _iteritems = "items"
-    _itervalues = "values"
+    def iteritems(d, **kw):
+        return iter(d.items(**kw))
+
+    def itervalues(d, **kw):
+        return iter(d.values(**kw))
 
     from binascii import crc32 as _crc32
 
@@ -45,11 +51,3 @@ else:
     def crc32(*args):
         rt = _crc32(*args)
         return rt - ((rt & 0x80000000) << 1)
-
-
-def iteritems(d, **kw):
-    return iter(getattr(d, _iteritems)(**kw))
-
-
-def itervalues(d, **kw):
-    return iter(getattr(d, _itervalues)(**kw))
