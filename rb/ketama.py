@@ -3,9 +3,18 @@ import math
 
 from bisect import bisect
 
+from rb.utils import text_type, integer_types, bytes_type
+
 
 def md5_bytes(key):
-    return map(ord, hashlib.md5(key).digest())
+    if isinstance(key, text_type):
+        k = key.encode("utf-8")
+    elif isinstance(key, integer_types):
+        k = text_type(key).encode("utf-8")
+    else:
+        k = bytes_type(key)
+
+    return bytearray(hashlib.md5(k).digest())
 
 
 class Ketama(object):

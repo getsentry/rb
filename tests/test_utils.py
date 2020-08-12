@@ -7,4 +7,4 @@ def test_crc32():
     """
     Test that we get consistent values from python 2/3
     """
-    assert crc32(bytes_type("test")) == -662733300
+    assert crc32("test".encode("utf-8")) == -662733300

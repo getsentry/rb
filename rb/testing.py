@@ -80,7 +80,9 @@ class TestSetup(object):
                     }
                 )
                 host_id += 1
-        return Cluster(hosts)
+        return Cluster(
+            hosts, pool_options={"encoding": "utf-8", "decode_responses": True}
+        )
 
     def spawn_server(self):
         """Spawns a new server and adds it to the pool."""
