@@ -2,6 +2,7 @@ from weakref import ref as weakref
 from binascii import crc32
 
 from rb.ketama import Ketama
+from rb.utils import text_type, bytes_type, integer_types
 from rb._rediscommands import COMMANDS
 
 
@@ -132,8 +133,10 @@ class PartitionRouter(BaseRouter):
         assert_gapless_hosts(self.cluster.hosts)
 
     def get_host_for_key(self, key):
-        if isinstance(key, unicode):
+        if isinstance(key, text_type):
             k = key.encode('utf-8')
+        elif isinstance(key, integer_types):
+            k = text_type(key).encode('utf-8')
         else:
-            k = str(key)
+            k = bytes_type(key)
         return crc32(k) % len(self.cluster.hosts)

@@ -1,10 +1,13 @@
 import time
 import pytest
+
 from redis.client import Script
 from redis.exceptions import ResponseError
+
 from rb.cluster import Cluster
 from rb.router import UnroutableCommand
 from rb.promise import Promise
+from rb.utils import text_type
 
 
 def test_basic_interface():
@@ -185,7 +188,7 @@ def test_fanout_api(cluster):
 def test_fanout_key_target(cluster):
     with cluster.fanout() as client:
         c = client.target_key('foo')
-        c.set('foo', str(42))
+        c.set('foo', '42')
         promise = c.get('foo')
     assert promise.value == '42'
 
@@ -211,7 +214,7 @@ def test_emulated_batch_apis(cluster):
     assert promise.value is None
     with cluster.map() as map_client:
         promise = map_client.mget(['key:%s' % x for x in range(10)])
-    assert promise.value == [str(x) for x in range(10)]
+    assert promise.value == map(text_type, range(10))
 
 
 def test_batch_promise_all(cluster):
@@ -271,7 +274,7 @@ def test_execute_commands(cluster):
 def test_reconnect(cluster):
     with cluster.map() as client:
         for x in range(10):
-            client.set(str(x), str(x))
+            client.set(text_type(x), text_type(x))
 
     with cluster.all() as client:
         client.config_set('timeout', 1)
@@ -280,8 +283,8 @@ def test_reconnect(cluster):
 
     with cluster.map() as client:
         rv = Promise.all([
-            client.get(str(x))
+            client.get(text_type(x))
             for x in range(10)
         ])
 
-    assert rv.value == list(map(str, range(10)))
+    assert rv.value == list(map(text_type, range(10)))

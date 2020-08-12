@@ -35,7 +35,7 @@ class SelectPoller(BasePoller):
     is_available = hasattr(select, 'select')
 
     def poll(self, timeout=None):
-        objs = self.objects.values()
+        objs = list(self.objects.values())
         rlist, wlist, xlist = select.select(objs, objs, [], timeout)
         if xlist:
             raise RuntimeError('Got unexpected OOB data')
