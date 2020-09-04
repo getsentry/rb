@@ -1,6 +1,7 @@
 import time
 import pytest
 
+import redis
 from redis.client import Script
 from redis.exceptions import ResponseError
 
@@ -89,7 +90,10 @@ def test_simple_api(cluster):
     with client.map() as map_client:
         for x in range(10):
             map_client.set("key:%d" % x, x)
-            map_client.zadd("zset:%d" % x, **dict(make_zset_data(x)))
+            if redis.VERSION >= (3, 0, 0):
+                map_client.zadd("zset:%d" % x, dict(make_zset_data(x)))
+            else:
+                map_client.zadd("zset:%d" % x, **dict(make_zset_data(x)))
 
     for x in range(10):
         assert client.get("key:%d" % x) == str(x)
@@ -174,7 +178,10 @@ def test_fanout_api(cluster):
     for host_id in cluster.hosts:
         client = cluster.get_local_client(host_id)
         client.set("foo", str(host_id))
-        client.zadd("zset", **dict(make_zset_data(host_id)))
+        if redis.VERSION >= (3, 0, 0):
+            client.zadd("zset", dict(make_zset_data(host_id)))
+        else:
+            client.zadd("zset", **dict(make_zset_data(host_id)))
 
     with cluster.fanout(hosts="all") as client:
         get_result = client.get("foo")
