@@ -1,6 +1,12 @@
 Rb Changelog
 ============
 
+Version 1.8
+-----------
+
+- Python 3.6 compatibility
+- Redis compatibility for versions >=2.6,<3.4
+
 Version 1.7
 -----------
 
