@@ -18,7 +18,7 @@ from rb.router import (
 from rb.promise import Promise
 
 
-__version__ = "1.8"
+__version__ = "1.9.0"
 
 __all__ = [
     # cluster
