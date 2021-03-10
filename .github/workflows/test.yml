@@ -1,10 +1,11 @@
-name: build
+name: test
 
 on:
   push:
     branches:
       - master
       - release/**
+  pull_request:
 
 jobs:
   test:
