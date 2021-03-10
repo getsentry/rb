@@ -1,4 +1,4 @@
-# rb
+# rb [![test](https://github.com/getsentry/rb/actions/workflows/test.yml/badge.svg)](https://github.com/getsentry/rb/actions/workflows/test.yml)
 
 ![logo](https://github.com/getsentry/rb/blob/master/docs/_static/rb.png?raw=true)
 

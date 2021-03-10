@@ -1,0 +1,45 @@
+name: test
+
+on:
+  push:
+    branches:
+      - master
+      - release/**
+  pull_request:
+
+jobs:
+  test:
+    name: Run tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["2.7", "3.6", "3.8", "pypy-2.7", "pypy-3.7"]
+        REDIS_VERSION: [">=2.6,<2.11", ">=3.3,<3.5"]
+    env:
+      REDIS_VERSION: ${{ matrix.REDIS_VERSION }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+          pip install --editable .
+      - name: Install Redis
+        run: |
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            sudo apt update && sudo apt install redis-server --no-install-recommends -y
+          elif [ "$RUNNER_OS" == "macOS" ]; then
+            brew install --quiet redis
+          else
+            echo "$RUNNER_OS not supported"
+            exit 1
+          fi
+      - name: Run tests
+        run: |
+          make test
