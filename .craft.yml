@@ -1,0 +1,16 @@
+minVersion: "0.18.0"
+github:
+  owner: getsentry
+  repo: rb
+changelog: CHANGES
+changelogPolicy: auto
+statusProvider:
+  name: github
+artifactProvider:
+  name: github
+targets:
+  - name: pypi
+  - name: github
+
+requireNames:
+  - /^rb-.+-py2.py3-none-any.whl$/

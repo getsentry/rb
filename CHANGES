@@ -1,13 +1,18 @@
 Rb Changelog
 ============
 
-Version 1.8
+Unreleased
+----------
+
+- Redis compatibility for 3.4.1
+
+1.8
 -----------
 
 - Python 3.6 compatibility
 - Redis compatibility for versions >=2.6,<3.4
 
-Version 1.7
+1.7
 -----------
 
 (released Jun 23rd 2017)
@@ -15,21 +20,21 @@ Version 1.7
 - Ensure a connection is released to the pool after receiving a response, even
   if the result is an error.
 
-Version 1.6
+1.6
 -----------
 
 (released Nov 23rd 2016)
 
 - Support `options` keyword arguments passed to `execute_command`.
 
-Version 1.5
+1.5
 -----------
 
 (released Nov 23rd 2016)
 
 - Detect dead connections on pool checkout.
 
-Version 1.4
+1.4
 -----------
 
 (released on Feb 8th 2015)
@@ -39,7 +44,7 @@ Version 1.4
   bad loops in when the socket closes while writing.
 - Added support for execute_commands.
 
-Version 1.3.1
+1.3.1
 -------------
 
 (released on Oct 13th 2015)
@@ -50,7 +55,7 @@ Version 1.3.1
   which both depend on a gapless setup.
 - Connection errors now try to print out the original IO error's infos.
 
-Version 1.3
+1.3
 -----------
 
 (released on Oct 7th 2015)
@@ -59,14 +64,14 @@ Version 1.3
   result on the promise is the value instead of a dictionary of a
   single host.
 
-Version 1.2
+1.2
 -----------
 
 (released on Oct 7th 2015)
 
 - Added `target_key` to the fanout client to simplify targeting of hosts.
 
-Version 1.1.2
+1.1.2
 -------------
 
 (released on Sep 28th 2015)
@@ -74,14 +79,14 @@ Version 1.1.2
 - Fixed command buffers for disabled max concurrency.
 - Fixed map manager timeouts.
 
-Version 1.1.1
+1.1.1
 -------------
 
 (released on Sep 15th 2015)
 
 - Made rb work with older versions of pyredis.
 
-Version 1.1
+1.1
 -----------
 
 (released on Sep 9th 2015)
@@ -90,7 +95,7 @@ Version 1.1
   and parallelism with large command batches where the command is
   larger than the kernel buffer size.
 
-Version 1.0
+1.0
 -----------
 
 (released on Sep 4th 2015)
