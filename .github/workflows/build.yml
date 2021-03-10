@@ -10,7 +10,7 @@ jobs:
   test:
     name: Run tests
     matrix:
-      python: ["2.7", "3.6", "3.8"]
+      python: ["2.7", "3.6", "3.8", "pypy-2.7", "pypy-3.7"]
       REDIS_VERSION: [">=2.6,<2.11", ">=3.3,<3.5"]
     env:
       REDIS_VERSION: ${{ matrix.REDIS_VERSION }}
