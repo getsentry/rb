@@ -1,0 +1,25 @@
+name: build
+
+on:
+  push:
+    branches:
+      - master
+      - release/**
+
+jobs:
+  dist:
+    name: Wheels
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+      - run: |
+          pip install wheel
+          python setup.py bdist_wheel
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ github.sha }}
+          path: dist/*
