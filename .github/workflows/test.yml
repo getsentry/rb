@@ -15,7 +15,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
         python: ["3.8", "3.9", "3.10", "pypy-3.8"]
-        REDIS_VERSION: ["<3", "<4"]
+        REDIS_VERSION: ["<3", "<4", "<5"]
     env:
       REDIS_VERSION: ${{ matrix.REDIS_VERSION }}
     steps:

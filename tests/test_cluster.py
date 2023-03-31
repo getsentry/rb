@@ -2,13 +2,17 @@ import time
 import pytest
 
 import redis
-from redis.client import Script
 from redis.exceptions import ResponseError
 
 from rb.cluster import Cluster
 from rb.router import UnroutableCommand
 from rb.promise import Promise
 from rb.utils import text_type
+
+try:
+    from redis.commands.core import Script
+except ImportError:
+    from redis.client import Script
 
 
 def test_basic_interface():
