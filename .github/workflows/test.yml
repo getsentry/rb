@@ -14,14 +14,14 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python: ["2.7", "3.6", "3.8", "pypy-2.7", "pypy-3.7"]
-        REDIS_VERSION: [">=2.6,<2.11", ">=3.3,<3.5"]
+        python: ["3.8", "3.9", "3.10", "pypy-3.8"]
+        REDIS_VERSION: ["<3", "<4"]
     env:
       REDIS_VERSION: ${{ matrix.REDIS_VERSION }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Setup Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python }}
 
@@ -43,3 +43,12 @@ jobs:
       - name: Run tests
         run: |
           make test
+  collector:
+    needs: [test]
+    if: always()
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check for failures
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: |
+          echo "One of the dependent jobs have failed. You may need to re-run it." && exit 1
