@@ -1,6 +1,16 @@
 Rb Changelog
 ============
 
+1.10.0
+------
+
+### Various fixes & improvements
+
+- add internal pypi deploy to `rb` (#54) by @asottile-sentry
+- set fetch-depth: 0 for release (#53) by @asottile-sentry
+- add compat for redis 5.x (#52) by @asottile-sentry
+- fix CI (#51) by @asottile-sentry
+
 1.9.0
 -----
 
