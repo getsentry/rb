@@ -12,7 +12,7 @@ with open("rb/__init__.py", "rb") as f:
         ast.literal_eval(_version_re.search(f.read().decode("utf-8")).group(1))
     )
 
-install_requires = ["redis>=2.6,<3.5,!=3.4.0"]
+install_requires = ["redis>=2.6,!=3.4.0"]
 
 # override django version in requirements file if DJANGO_VERSION is set
 REDIS_VERSION = os.environ.get('REDIS_VERSION')

@@ -1,5 +1,9 @@
-from redis.client import Script
 from redis.connection import ConnectionPool, UnixDomainSocketConnection
+
+try:
+    from redis.commands.core import Script  # redis>=5
+except ImportError:
+    from redis.client import Script  # redis<5
 
 try:
     from redis.connection import SSLConnection
