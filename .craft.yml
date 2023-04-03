@@ -11,6 +11,8 @@ artifactProvider:
 targets:
   - name: pypi
   - name: github
+  - name: sentry-pypi
+    internalPypiRepo: getsentry/pypi
 
 requireNames:
   - /^rb-.+-py2.py3-none-any.whl$/
