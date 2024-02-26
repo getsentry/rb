@@ -12,14 +12,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: 3.8
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
       - run: |
           pip install wheel
           python setup.py bdist_wheel
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ github.sha }}
           path: dist/*
