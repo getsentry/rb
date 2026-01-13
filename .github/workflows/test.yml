@@ -7,10 +7,6 @@ on:
       - release/**
   pull_request:
 
-permissions:
-  contents: write
-  pull-requests: write
-
 jobs:
   test:
     name: Run tests
@@ -23,7 +19,7 @@ jobs:
     env:
       REDIS_VERSION: ${{ matrix.REDIS_VERSION }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v3
+      - uses: actions/checkout@v3
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
