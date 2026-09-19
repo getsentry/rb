@@ -532,7 +532,7 @@ class RoutingClient(RoutingBaseClient):
         """Returns a thread unsafe mapping client.  This client works
         similar to a redis pipeline and returns eventual result objects.
         It needs to be joined on to work properly.  Instead of using this
-        directly you shold use the :meth:`map` context manager which
+        directly you should use the :meth:`map` context manager which
         automatically joins.
 
         Returns an instance of :class:`MappingClient`.
