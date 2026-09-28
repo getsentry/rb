@@ -1,6 +1,23 @@
 Rb Changelog
 ============
 
+1.11.0
+------
+
+### New Features ✨
+
+- (release) Replace release bot with GH app by @Jeffreyhung in [#57](https://github.com/getsentry/rb/pull/57)
+
+### Bug Fixes 🐛
+
+- Avoid invalid escape sequence in fanout docstring by @oioki in [#62](https://github.com/getsentry/rb/pull/62)
+
+### Internal Changes 🔧
+
+- Pin GitHub Actions macOS runners to macos-15 by @sentry-junior in [#60](https://github.com/getsentry/rb/pull/60)
+- Pin GitHub Actions to full-length commit SHAs by @joshuarli in [#59](https://github.com/getsentry/rb/pull/59)
+- Update github actions by @anonrig in [#56](https://github.com/getsentry/rb/pull/56)
+
 1.10.0
 ------
 
