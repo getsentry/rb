@@ -532,7 +532,7 @@ class RoutingClient(RoutingBaseClient):
         """Returns a thread unsafe mapping client.  This client works
         similar to a redis pipeline and returns eventual result objects.
         It needs to be joined on to work properly.  Instead of using this
-        directly you shold use the :meth:`map` context manager which
+        directly you should use the :meth:`map` context manager which
         automatically joins.
 
         Returns an instance of :class:`MappingClient`.
@@ -592,10 +592,10 @@ class RoutingClient(RoutingBaseClient):
         The promise returned accumulates all results in a dictionary keyed
         by the `host_id`.
 
-        The `hosts` parameter is a list of `host_id`\s or alternatively the
+        The `hosts` parameter is a list of `host_id` values or alternatively the
         string ``'all'`` to send the commands to all hosts.
 
-        The fanout APi needs to be used with a lot of care as it can cause
+        The fanout API needs to be used with a lot of care as it can cause
         a lot of damage when keys are written to hosts that do not expect
         them.
         """
